@@ -41,23 +41,23 @@ Short **Mobile AI Agent** demos on YouTube.
 
 1. **Mobile AI Agent stars a GitHub repo**
 
-   [![Mobile AI Agent stars an open-source repo](./static/demos/Screenrecorder-2026-04-04-04-37-11-407_first_frame.jpg)](https://www.youtube.com/shorts/WxQkucIl0Uk)
+   <a href="https://www.youtube.com/shorts/WxQkucIl0Uk"><img src="./static/demos/Screenrecorder-2026-04-04-04-37-11-407_first_frame.jpg" alt="Mobile AI Agent stars an open-source repo" width="270" style="max-width: 100%; height: auto;"></a>
 
 2. **Mobile AI Agent views the latest photos in the app**
 
-   [![Mobile AI Agent views the latest photos in the app](./static/demos/Screenrecorder-2026-04-04-04-42-14-668_first_frame.jpg)](https://www.youtube.com/shorts/wxRjIb7N81E)
+   <a href="https://www.youtube.com/shorts/wxRjIb7N81E"><img src="./static/demos/Screenrecorder-2026-04-04-04-42-14-668_first_frame.jpg" alt="Mobile AI Agent views the latest photos in the app" width="270" style="max-width: 100%; height: auto;"></a>
 
 <br>
 
 3. **Mobile AI Agent plays a short in the video app**
 
-   [![Mobile AI Agent plays a short in the video app](./static/demos/Screenrecorder-2026-04-04-04-10-36-860_first_frame.jpg)](https://www.youtube.com/shorts/HEgmJSzulEc)
+   <a href="https://www.youtube.com/shorts/HEgmJSzulEc"><img src="./static/demos/Screenrecorder-2026-04-04-04-10-36-860_first_frame.jpg" alt="Mobile AI Agent plays a short in the video app" width="270" style="max-width: 100%; height: auto;"></a>
 
 <br>
 
 4. **Mobile AI Agent follows a social account**
 
-   [![Mobile AI Agent follows a social account](./static/demos/Screenrecorder-2026-04-04-04-12-49-501_first_frame.jpg)](https://www.youtube.com/shorts/MyszLbsT7CA)
+   <a href="https://www.youtube.com/shorts/MyszLbsT7CA"><img src="./static/demos/Screenrecorder-2026-04-04-04-12-49-501_first_frame.jpg" alt="Mobile AI Agent follows a social account" width="270" style="max-width: 100%; height: auto;"></a>
 
 <br>
 

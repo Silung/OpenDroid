@@ -41,23 +41,23 @@ OpenDroid 在 **安卓本机** 运行 **智能体**，通过 **HTTP API** 调用
 
 1. **Mobile AI Agent 为 Github 仓库点星**
 
-   [![Mobile AI Agent 为开源仓库点星](./static/demos/Screenrecorder-2026-04-04-04-37-11-407_first_frame.jpg)](https://www.youtube.com/shorts/WxQkucIl0Uk)
+   <a href="https://www.youtube.com/shorts/WxQkucIl0Uk"><img src="./static/demos/Screenrecorder-2026-04-04-04-37-11-407_first_frame.jpg" alt="Mobile AI Agent 为开源仓库点星" width="270" style="max-width: 100%; height: auto;"></a>
 
 2. **Mobile AI Agent 在应用内查看最新照片**
 
-   [![Mobile AI Agent 在应用内查看最新照片](./static/demos/Screenrecorder-2026-04-04-04-42-14-668_first_frame.jpg)](https://www.youtube.com/shorts/wxRjIb7N81E)
+   <a href="https://www.youtube.com/shorts/wxRjIb7N81E"><img src="./static/demos/Screenrecorder-2026-04-04-04-42-14-668_first_frame.jpg" alt="Mobile AI Agent 在应用内查看最新照片" width="270" style="max-width: 100%; height: auto;"></a>
 
 <br>
 
 3. **Mobile AI Agent 在视频应用里播放短片**
 
-   [![Mobile AI Agent 在视频应用里播放短片](./static/demos/Screenrecorder-2026-04-04-04-10-36-860_first_frame.jpg)](https://www.youtube.com/shorts/HEgmJSzulEc)
+   <a href="https://www.youtube.com/shorts/HEgmJSzulEc"><img src="./static/demos/Screenrecorder-2026-04-04-04-10-36-860_first_frame.jpg" alt="Mobile AI Agent 在视频应用里播放短片" width="270" style="max-width: 100%; height: auto;"></a>
 
 <br>
 
 4. **Mobile AI Agent 关注社交账号**
 
-   [![Mobile AI Agent 关注社交账号](./static/demos/Screenrecorder-2026-04-04-04-12-49-501_first_frame.jpg)](https://www.youtube.com/shorts/MyszLbsT7CA)
+   <a href="https://www.youtube.com/shorts/MyszLbsT7CA"><img src="./static/demos/Screenrecorder-2026-04-04-04-12-49-501_first_frame.jpg" alt="Mobile AI Agent 关注社交账号" width="270" style="max-width: 100%; height: auto;"></a>
 
 <br>
 
