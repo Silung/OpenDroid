@@ -1,0 +1,34 @@
+# Gradle / Android 构建与缓存
+/.gradle/
+**/.gradle/
+**/build/
+/build/
+.kotlin/
+
+# JVM / NDK 本地产物与缓存
+*.class
+*.hprof
+.cxx/
+.externalNativeBuild/
+
+# 包体与中间产物（若出现在仓库根目录等）
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# IDE（团队若需共享 .idea 可删去下行）
+/.idea/
+
+# 本机配置与密钥材料
+/local.properties
+*.iml
+*.jks
+*.keystore
+signing.properties
+
+# 系统杂项
+.DS_Store
+Thumbs.db
+*.log
+

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OpenDroid</string>
+    <string name="overlay_window_title">OpenDroid · 输出</string>
+    <string name="overlay_notification_channel_id">opendroid_overlay</string>
+    <string name="overlay_notification_channel_name">悬浮窗</string>
+    <string name="overlay_notification_title">OpenDroid</string>
+    <string name="overlay_notification_text">Agent 输出悬浮窗运行中（可最小化通知）</string>
+    <string name="overlay_body_empty_idle">（暂无助手输出）</string>
+    <string name="overlay_body_no_reply">（暂无助手回复）</string>
+    <string name="overlay_status_streaming">⏳ 输出中…</string>
+    <string name="overlay_status_processing">⏳ 处理中…</string>
+    <string name="overlay_status_waiting">⏳ 等待回复…</string>
+    <string name="overlay_status_ellipsis">⏳ …</string>
+    <string name="overlay_status_tool">🔧 %1$s…</string>
+
+    <string name="version_label">版本 %s</string>
+    <string name="language_section">界面语言</string>
+    <string name="skill_management">Skill 管理</string>
+    <string name="settings">设置</string>
+    <string name="chat_history">历史会话</string>
+    <string name="new_session">新建会话</string>
+    <string name="default_session_title">新会话</string>
+    <string name="open_drawer">打开侧栏</string>
+    <string name="tool_status_line">工具 · %1$s · %2$d ms · %3$s</string>
+    <string name="status_success">成功</string>
+    <string name="status_failed">失败</string>
+    <string name="tool_use_id_line">tool_use_id: %1$s</string>
+    <string name="parameters">参数</string>
+    <string name="result_chars">返回（%1$d 字符）</string>
+    <string name="input_message_placeholder">输入消息…</string>
+    <string name="stop_current_task">停止当前任务</string>
+    <string name="send">发送</string>
+
+    <string name="settings_title">设置</string>
+    <string name="back">返回</string>
+    <string name="label_api_key">API Key</string>
+    <string name="hint_api_key_default">留空则使用构建注入默认值</string>
+    <string name="label_base_url">Base URL</string>
+    <string name="label_model">Model</string>
+    <string name="label_max_agent_turns">Max agent turns</string>
+    <string name="overlay_output_title">悬浮窗输出</string>
+    <string name="overlay_output_desc">仅在 Agent 推理时显示；本轮结束后约 5 秒自动关闭。半透明叠层、不可点击。须「显示在其他应用上层」，Android 13+ 可能需通知权限。</string>
+    <string name="save_and_back">保存并返回</string>
+    <string name="settings_footer_tips">无障碍：系统设置 → 无障碍 → OpenDroid（开启后 Agent 才能读屏与点击）。\nSkill：侧栏「Skill 管理」，或写入 skills/&lt;skill_id&gt;/SKILL.md。\n悬浮窗：仅在 Agent 运行期间显示，结束后约 5 秒消失；在其它 App 时需进程存活才会刷新。</string>
+
+    <string name="skill_list_title">Skill 管理</string>
+    <string name="cd_back">返回</string>
+    <string name="cd_new_skill">新建 Skill</string>
+    <string name="skill_list_loading">加载中…</string>
+    <string name="skill_list_summary">共 %1$d 个技能（目录位于应用私有 skills/）</string>
+    <string name="skill_id_prefix">id: %1$s</string>
+    <string name="cd_delete">删除</string>
+    <string name="delete_skill_title">删除技能</string>
+    <string name="delete_skill_message">确定删除「%1$s」（%2$s）？</string>
+    <string name="delete">删除</string>
+    <string name="cancel">取消</string>
+
+    <string name="skill_editor_new_title">新建 Skill</string>
+    <string name="skill_editor_edit_title">编辑 Skill</string>
+    <string name="cd_save">保存</string>
+    <string name="skill_id_field_label">skill_id（目录名，load_skill 使用）</string>
+    <string name="skill_id_field_supporting">仅字母、数字、._-，例如 wechat-forward</string>
+    <string name="skill_id_readonly">skill_id: %1$s</string>
+    <string name="skill_md_full_source">SKILL.md 全文</string>
+</resources>

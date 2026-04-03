@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- From icon.svg: white areas → transparent; green center is a ring so the bullseye is see-through -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="192"
+    android:viewportHeight="192">
+    <group
+        android:pivotX="96"
+        android:pivotY="96"
+        android:scaleX="0.72"
+        android:scaleY="0.72">
+        <!-- Outer black annulus: full outer disk minus green outer boundary -->
+        <path
+            android:fillColor="#FF000000"
+            android:fillType="evenOdd"
+            android:pathData="M18.978,95.587c0,-43.078 34.698,-78 77.5,-78c42.802,0 77.5,34.922 77.5,78c0,43.078 -34.698,78 -77.5,78c-42.802,0 -77.5,-34.922 -77.5,-78z M29.978,95.587c0,-37.003 29.773,-67 66.5,-67c36.727,0 66.5,29.997 66.5,67c0,37.003 -29.773,67 -66.5,67c-36.727,0 -66.5,-29.997 -66.5,-67z"
+            android:strokeWidth="1.33333"
+            android:strokeColor="#000000"
+            android:strokeMiterLimit="8" />
+        <!-- Green annulus: outer green disk minus former white center -->
+        <path
+            android:fillColor="#FF7EC27C"
+            android:fillType="evenOdd"
+            android:pathData="M29.978,95.587c0,-37.003 29.773,-67 66.5,-67c36.727,0 66.5,29.997 66.5,67c0,37.003 -29.773,67 -66.5,67c-36.727,0 -66.5,-29.997 -66.5,-67z M67.478,95.587c0,-15.74 12.76,-28.5 28.5,-28.5c15.74,0 28.5,12.76 28.5,28.5c0,15.74 -12.76,28.5 -28.5,28.5c-15.74,0 -28.5,-12.76 -28.5,-28.5z"
+            android:strokeWidth="1.33333"
+            android:strokeColor="#000000"
+            android:strokeMiterLimit="8" />
+        <!-- Middle ring -->
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M56.978,95.587c0,-21.539 17.685,-39 39.5,-39c21.815,0 39.5,17.461 39.5,39c0,21.539 -17.685,39 -39.5,39c-21.815,0 -39.5,-17.461 -39.5,-39z"
+            android:strokeWidth="1.33333"
+            android:strokeColor="#000000"
+            android:strokeMiterLimit="8" />
+    </group>
+</vector>

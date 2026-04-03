@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OpenDroid</string>
+    <string name="overlay_window_title">OpenDroid · Output</string>
+    <string name="overlay_notification_channel_id">opendroid_overlay</string>
+    <string name="overlay_notification_channel_name">Overlay</string>
+    <string name="overlay_notification_title">OpenDroid</string>
+    <string name="overlay_notification_text">Agent output overlay is running (notification can be minimized)</string>
+    <string name="overlay_body_empty_idle">(No assistant output yet)</string>
+    <string name="overlay_body_no_reply">(No reply yet)</string>
+    <string name="overlay_status_streaming">⏳ Generating…</string>
+    <string name="overlay_status_processing">⏳ Working…</string>
+    <string name="overlay_status_waiting">⏳ Waiting for reply…</string>
+    <string name="overlay_status_ellipsis">⏳ …</string>
+    <string name="overlay_status_tool">🔧 %1$s…</string>
+
+    <string name="version_label">Version %s</string>
+    <string name="language_section">Display language</string>
+    <string name="skill_management">Skills</string>
+    <string name="settings">Settings</string>
+    <string name="chat_history">History</string>
+    <string name="new_session">New chat</string>
+    <string name="default_session_title">New chat</string>
+    <string name="open_drawer">Open navigation drawer</string>
+    <string name="tool_status_line">Tool · %1$s · %2$d ms · %3$s</string>
+    <string name="status_success">OK</string>
+    <string name="status_failed">Failed</string>
+    <string name="tool_use_id_line">tool_use_id: %1$s</string>
+    <string name="parameters">Arguments</string>
+    <string name="result_chars">Result (%1$d chars)</string>
+    <string name="input_message_placeholder">Message…</string>
+    <string name="stop_current_task">Stop current task</string>
+    <string name="send">Send</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="back">Back</string>
+    <string name="label_api_key">API Key</string>
+    <string name="hint_api_key_default">Leave empty to use the build-injected default</string>
+    <string name="label_base_url">Base URL</string>
+    <string name="label_model">Model</string>
+    <string name="label_max_agent_turns">Max agent turns</string>
+    <string name="overlay_output_title">Overlay output</string>
+    <string name="overlay_output_desc">Shown only while the agent is thinking; closes about 5s after the turn ends. Semi-transparent, non-interactive. Needs “Display over other apps”; Android 13+ may require notification permission.</string>
+    <string name="save_and_back">Save &amp; back</string>
+    <string name="settings_footer_tips">Accessibility: Settings → Accessibility → OpenDroid (required for screen reading and taps).\nSkills: drawer “Skills”, or files under skills/&lt;skill_id&gt;/SKILL.md.\nOverlay: only while the agent runs; needs the process alive to refresh when other apps are in foreground.</string>
+
+    <string name="skill_list_title">Skills</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_new_skill">New skill</string>
+    <string name="skill_list_loading">Loading…</string>
+    <string name="skill_list_summary">%1$d skill(s) in app-private skills/</string>
+    <string name="skill_id_prefix">id: %1$s</string>
+    <string name="cd_delete">Delete</string>
+    <string name="delete_skill_title">Delete skill</string>
+    <string name="delete_skill_message">Delete “%1$s” (%2$s)?</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+
+    <string name="skill_editor_new_title">New skill</string>
+    <string name="skill_editor_edit_title">Edit skill</string>
+    <string name="cd_save">Save</string>
+    <string name="skill_id_field_label">skill_id (folder name, for load_skill)</string>
+    <string name="skill_id_field_supporting">Letters, digits, . _ - only, e.g. wechat-forward</string>
+    <string name="skill_id_readonly">skill_id: %1$s</string>
+    <string name="skill_md_full_source">Full SKILL.md</string>
+</resources>

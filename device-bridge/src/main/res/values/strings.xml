@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="opendroid_a11y_description">OpenDroid：为 Agent 读屏与自动点击。本服务在系统中的名称与 Android「随选朗读」(Select-to-Speak) 组件相同，以便在部分厂商/应用的白名单策略下仍可获得较完整的无障碍节点树。请在无障碍设置中开启本项。</string>
+</resources>
