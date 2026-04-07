@@ -2,9 +2,12 @@ package dev.opendroid.app.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -59,6 +63,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.res.stringResource
@@ -68,6 +74,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.opendroid.agent.ToolResultImage
 import dev.opendroid.app.AppLocale
 import dev.opendroid.app.ChatLine
 import dev.opendroid.app.ChatViewModel
@@ -80,6 +87,35 @@ import kotlinx.coroutines.launch
 private val userBubbleShape = RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)
 private val agentBubbleShape = RoundedCornerShape(4.dp, 18.dp, 18.dp, 18.dp)
 private val composerFieldShape = RoundedCornerShape(22.dp)
+
+@Composable
+private fun ToolResultImageThumbnails(images: List<ToolResultImage>) {
+    if (images.isEmpty()) return
+    val cd = stringResource(R.string.cd_tool_screenshot_thumbnail)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(top = 8.dp),
+    ) {
+        for (img in images) {
+            val bitmap = remember(img.mediaType, img.base64Data) {
+                runCatching {
+                    val bytes = Base64.decode(img.base64Data, Base64.DEFAULT)
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                }.getOrNull()
+            }
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = cd,
+                    modifier = Modifier
+                        .height(120.dp)
+                        .widthIn(max = 220.dp),
+                    contentScale = ContentScale.Fit,
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun UserMessageBubble(text: String) {
@@ -355,6 +391,11 @@ fun ChatScreen(
                                     } else {
                                         stringResource(R.string.status_failed)
                                     }
+                                    val resultLegend = if (item.name == "capture_screenshot" && item.resultImages.isNotEmpty()) {
+                                        stringResource(R.string.tool_screenshot_result_legend, item.resultTotalChars)
+                                    } else {
+                                        stringResource(R.string.result_chars, item.resultTotalChars)
+                                    }
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                         colors = CardDefaults.cardColors(
@@ -394,7 +435,7 @@ fun ChatScreen(
                                                     .verticalScroll(inputScroll),
                                             )
                                             Text(
-                                                text = stringResource(R.string.result_chars, item.resultTotalChars),
+                                                text = resultLegend,
                                                 style = MaterialTheme.typography.labelMedium,
                                                 color = OpenDroidChatPalette.agentText,
                                                 modifier = Modifier.padding(top = 8.dp),
@@ -408,6 +449,7 @@ fun ChatScreen(
                                                     .heightIn(max = 360.dp)
                                                     .verticalScroll(resultScroll),
                                             )
+                                            ToolResultImageThumbnails(item.resultImages)
                                         }
                                     }
                                 }

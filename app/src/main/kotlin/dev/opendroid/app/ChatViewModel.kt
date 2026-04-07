@@ -28,7 +28,11 @@ import dev.opendroid.agent.FinishReason
 
 import dev.opendroid.agent.OpenDroidQueryLoop
 
+import dev.opendroid.agent.OpenAiChatCompletionsLlmClient
+
 import dev.opendroid.agent.QueryLoopEvent
+
+import dev.opendroid.agent.ToolResultImage
 
 import dev.opendroid.agent.opendroidDefaultToolDefinitions
 
@@ -65,6 +69,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 import kotlinx.coroutines.withContext
+
+import dev.opendroid.app.debug.DebugAgentTrace
 
 import dev.opendroid.app.overlay.FloatingOverlayService
 
@@ -108,6 +114,8 @@ sealed class ChatLine {
 
         val resultPreview: String,
 
+        val resultImages: List<ToolResultImage> = emptyList(),
+
         val id: String = UUID.randomUUID().toString(),
 
     ) : ChatLine()
@@ -132,9 +140,9 @@ For get_ui_tree: add keyword, maxDepth, maxNodes, compact, hideNonVisible when h
 
 Bounds `b` are **absolute screen pixels** (same space as Android getBoundsInScreen). For tap, swipe, long_press, and drag: use **`normalized: false`** (or omit it) and pass **pixel** x/y — e.g. tap center `((l+r)/2, (t+bt)/2)`. Do **not** use normalized=true with tree pixel values.
 
-**When to use capture_screenshot (vision):** Prefer trees when they are trustworthy; use JPEG when the tree cannot ground your next action. Call capture_screenshot after a quick **`{}` get_ui_tree** baseline whenever **any** of the following hold — you do **not** need the tree to be literally empty: (1) **Animations / transitions / splash / video / games / heavy motion**: the snapshotted tree may lag the pixels on screen; use **agent_wait** (e.g. 500–2000 ms), re-get the tree once, then **capture_screenshot** if the UI still does not line up with what you need. (2) **WebView, hybrid, custom drawing, paywalls**, or UIs where labels exist but **targets or hit areas** are missing or wrong. (3) The tree **looks plausible but you cannot find** the control the user cares about, or **repeated taps** do not match visible feedback. (4) You must **verify** what the user sees (layout, icons, disabled state) and the tree does not expose it. After a screenshot, **prefer tree bounds** for taps when the node exists; if the tree has no node for the target, **estimate screen-pixel coordinates from the image** (same coordinate space as bounds: origin top-left, match image width/height to the metadata JSON) and tap with **`normalized: false`**.
+**When to use capture_screenshot (vision):** Prefer trees when they are trustworthy; use JPEG when the tree cannot ground your next action. Call capture_screenshot after a quick **`{}` get_ui_tree** baseline whenever **any** of the following hold — you do **not** need the tree to be literally empty: (0) **Information-sparse tree:** The tool result is **very small** (few nodes, little text, almost no actionable bounds/labels) or otherwise **too thin** to choose the next step—**use capture_screenshot** to see what is on screen instead of guessing from a bare tree. (1) **Animations / transitions / splash / video / games / heavy motion**: the snapshotted tree may lag the pixels on screen; use **agent_wait** (e.g. 500–2000 ms), re-get the tree once, then **capture_screenshot** if the UI still does not line up with what you need. (2) **WebView, hybrid, custom drawing, paywalls**, or UIs where labels exist but **targets or hit areas** are missing or wrong. (3) The tree **looks plausible but you cannot find** the control the user cares about, or **repeated taps** do not match visible feedback. (4) You must **verify** what the user sees (layout, icons, disabled state) and the tree does not expose it. After a screenshot, **prefer tree bounds** for taps when the node exists; if the tree has no node for the target, **estimate screen-pixel coordinates from the image** (same coordinate space as bounds: origin top-left, match image width/height to the metadata JSON) and tap with **`normalized: false`**.
 
-**capture_screenshot result shape:** The tool_result **text** is **metadata JSON only** (width, height, ok, etc.). The **screenshot is attached as image block(s)** to that same tool result for vision — do not expect base64 or pixels inside the text string. Prefer **`{}`** for parameters unless you must reduce image size (maxLongEdge/maxShortEdge are downscale **caps**, not request dimensions).
+**capture_screenshot result shape:** The tool_result **text** is **metadata JSON only** (width, height, ok, etc.). The **screenshot is attached as image block(s)** to that same tool result for vision — do not expect base64 or pixels inside the text string. Prefer **`{}`**: default is **full-resolution** JPEG; pass smaller **maxLongEdge** / **maxShortEdge** only to cap downscaling and save tokens.
 
 Use agent_wait(duration_ms) to wait for animations, page loads, or when the user asks to pause; keep waits modest (often 500–2000 ms).
 
@@ -724,7 +732,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
                 if (key.isBlank()) {
 
-                    _lines.update { it + ChatLine.System("请先在设置中填写 Anthropic API Key。") }
+                    _lines.update {
+                        it + ChatLine.System(getApplication<Application>().getString(R.string.llm_api_key_required))
+                    }
 
                     return@launch
 
@@ -732,13 +742,31 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
                 overlayStartedThisRun = tryStartOverlayForAgent()
 
-                val client = AnthropicLlmClient(
+                val debugTrace = DebugAgentTrace.tryStartTrace(getApplication(), _activeSessionId.value)
 
-                    apiKey = key,
+                val client = when (settings.llmApiFormat) {
 
-                    baseUrl = settings.anthropicBaseUrl,
+                    LlmApiFormat.OPENAI_CHAT_COMPLETIONS -> OpenAiChatCompletionsLlmClient(
 
-                )
+                        apiKey = key,
+
+                        baseUrl = settings.anthropicBaseUrl,
+
+                        trafficLogger = debugTrace,
+
+                    )
+
+                    LlmApiFormat.ANTHROPIC_MESSAGES -> AnthropicLlmClient(
+
+                        apiKey = key,
+
+                        baseUrl = settings.anthropicBaseUrl,
+
+                        trafficLogger = debugTrace,
+
+                    )
+
+                }
 
                 val tools = opendroidDefaultToolDefinitions()
 
@@ -765,6 +793,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     tools = tools,
 
                     toolExecutor = opendroidDeviceToolExecutor(getApplication(), skillRepo),
+
+                    toolTrafficLogger = debugTrace,
+
+                    maxLlmHistoryAssistantMessages = settings.maxLlmHistoryAssistantMessages,
 
                 )
 
@@ -851,6 +883,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         resultTotalChars = ev.resultTotalChars,
 
                         resultPreview = ev.resultPreview,
+
+                        resultImages = ev.resultImages,
 
                     )
 

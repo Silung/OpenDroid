@@ -28,6 +28,8 @@
     <string name="tool_use_id_line">tool_use_id: %1$s</string>
     <string name="parameters">参数</string>
     <string name="result_chars">返回（%1$d 字符）</string>
+    <string name="tool_screenshot_result_legend">返回为 JSON 元数据（约 %1$d 字符）；JPEG 画面见下方缩略图。</string>
+    <string name="cd_tool_screenshot_thumbnail">截图缩略图</string>
     <string name="input_message_placeholder">输入消息…</string>
     <string name="stop_current_task">停止当前任务</string>
     <string name="send">发送</string>
@@ -42,9 +44,17 @@
     <string name="back">返回</string>
     <string name="label_api_key">API Key</string>
     <string name="hint_api_key_default">留空则使用构建注入默认值</string>
+    <string name="label_api_format">API 格式</string>
+    <string name="api_format_openai_short">OpenAI 兼容</string>
+    <string name="api_format_anthropic_short">Anthropic</string>
+    <string name="api_format_openai_desc">/v1/chat/completions（硅基流动多模态文档，截图用 image_url）</string>
+    <string name="api_format_anthropic_desc">/v1/messages（Anthropic Messages）</string>
+    <string name="llm_api_key_required">请先在设置中填写 API Key。</string>
     <string name="label_base_url">Base URL</string>
     <string name="label_model">Model</string>
     <string name="label_max_agent_turns">Max agent turns</string>
+    <string name="label_max_llm_history_messages">传给模型的 Assistant 条数上限</string>
+    <string name="support_max_llm_history_messages">只统计助手消息；User 消息不设条数上限（会随截取保留在窗口内）。默认 6。</string>
     <string name="overlay_output_title">悬浮窗输出</string>
     <string name="overlay_output_desc">仅在 Agent 推理时显示；本轮结束后约 5 秒自动关闭。半透明叠层、不可点击。须「显示在其他应用上层」，Android 13+ 可能需通知权限。</string>
     <string name="save_and_back">保存并返回</string>

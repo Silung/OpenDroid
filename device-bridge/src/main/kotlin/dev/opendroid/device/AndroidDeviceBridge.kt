@@ -25,6 +25,11 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
+/** 与 [AccessibilityScreenshot.scaleBitmapToMaxEdgeBounds] 配合：上限 ≥ 常见机型长边即等价于原图。 */
+private const val CAPTURE_SCREENSHOT_MAX_EDGE_CAP: Int = 16384
+private const val CAPTURE_SCREENSHOT_MIN_EDGE_CAP: Int = 64
+private const val CAPTURE_SCREENSHOT_DEFAULT_MAX_EDGE: Int = CAPTURE_SCREENSHOT_MAX_EDGE_CAP
+
 class AndroidDeviceBridge(
     app: Context,
 ) {
@@ -180,8 +185,12 @@ class AndroidDeviceBridge(
                 isError = true,
             )
         }
-        val maxLongEdge = input.optInt("maxLongEdge", 854).coerceIn(640, 2048)
-        val maxShortEdge = input.optInt("maxShortEdge", 480).coerceIn(360, 1080)
+        // 默认使用「原图」尺寸：cap 足够大时 scaleBitmapToMaxEdgeBounds 的 scale 为 1，不缩小。
+        // 需要省流量/降 token 时可传 maxLongEdge / maxShortEdge（仅缩小、不放大）。
+        val maxLongEdge = input.optInt("maxLongEdge", CAPTURE_SCREENSHOT_DEFAULT_MAX_EDGE)
+            .coerceIn(CAPTURE_SCREENSHOT_MIN_EDGE_CAP, CAPTURE_SCREENSHOT_MAX_EDGE_CAP)
+        val maxShortEdge = input.optInt("maxShortEdge", CAPTURE_SCREENSHOT_DEFAULT_MAX_EDGE)
+            .coerceIn(CAPTURE_SCREENSHOT_MIN_EDGE_CAP, CAPTURE_SCREENSHOT_MAX_EDGE_CAP)
         val jpegQuality = input.optInt("jpegQuality", 82).coerceIn(40, 95)
         svc.captureScreenshotForAgent(maxLongEdge, maxShortEdge, jpegQuality)
     }

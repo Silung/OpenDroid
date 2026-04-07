@@ -10,4 +10,6 @@ class AnthropicApiException(
     val requestId: String? = null,
     /** 来自 HTTP `Retry-After`（秒）换算的毫秒，或 null。 */
     val retryAfterMillisHint: Long? = null,
+    /** 非 2xx 时的 HTTP 响应体原文（截断前），便于 debug 落盘。 */
+    val rawHttpBody: String? = null,
 ) : Exception(message)

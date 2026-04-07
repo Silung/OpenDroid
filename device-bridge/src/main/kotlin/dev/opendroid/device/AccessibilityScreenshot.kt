@@ -103,7 +103,7 @@ suspend fun OpenDroidAccessibilityService.captureScreenshotForAgent(
 }
 
 /**
- * 缩放到不超过长边/短边上限：长边 ≤ [maxLong]、短边 ≤ [maxShort]（工具默认 854×480，约 480p 16:9），等比、不放大。
+ * 缩放到不超过长边/短边上限（等比、不放大）。当 [maxLong]、[maxShort] 均不小于截图本身的长/短边时，返回原 [src]。
  */
 private fun scaleBitmapToMaxEdgeBounds(src: Bitmap, maxLong: Int, maxShort: Int): Bitmap {
     val w = src.width.toFloat()

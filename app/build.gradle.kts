@@ -35,7 +35,7 @@ android {
         val injectedApiKey = System.getenv("OPENDROID_DEFAULT_API_KEY")
             ?: localProps.getProperty("opendroid.default.api.key")
             ?: ""
-        val defaultBaseUrl = "https://api.siliconflow.cn/"
+        val defaultBaseUrl = "https://api.siliconflow.cn/v1"
         val defaultModel = "zai-org/GLM-4.6V"
         buildConfigField(
             "String",

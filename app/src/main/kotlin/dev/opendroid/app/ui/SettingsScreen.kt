@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import dev.opendroid.app.BuildConfig
 import dev.opendroid.app.overlay.FloatingOverlayService
+import dev.opendroid.app.LlmApiFormat
 import dev.opendroid.app.OpenDroidSettings
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -23,6 +24,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -49,7 +53,9 @@ fun SettingsScreen(onBack: () -> Unit) {
     var baseUrl by remember { mutableStateOf(settings.anthropicBaseUrlStoredRaw()) }
     var model by remember { mutableStateOf(settings.modelStoredRaw()) }
     var maxTurns by remember { mutableStateOf(settings.maxTurns.toString()) }
+    var maxLlmHistory by remember { mutableStateOf(settings.maxLlmHistoryAssistantMessagesStoredRaw().ifBlank { "6" }) }
     var overlayEnabled by remember { mutableStateOf(settings.overlayEnabled) }
+    var apiFormat by remember { mutableStateOf(settings.llmApiFormat) }
 
     LifecycleResumeEffect(Unit) {
         overlayEnabled = settings.overlayEnabled
@@ -97,6 +103,39 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .padding(16.dp)
                 .fillMaxWidth(),
         ) {
+            Text(stringResource(R.string.label_api_format), style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(6.dp))
+            val formatOptions =
+                listOf(LlmApiFormat.OPENAI_CHAT_COMPLETIONS, LlmApiFormat.ANTHROPIC_MESSAGES)
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                formatOptions.forEachIndexed { index, opt ->
+                    SegmentedButton(
+                        selected = apiFormat == opt,
+                        onClick = { apiFormat = opt },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = formatOptions.size),
+                    ) {
+                        Text(
+                            when (opt) {
+                                LlmApiFormat.OPENAI_CHAT_COMPLETIONS ->
+                                    stringResource(R.string.api_format_openai_short)
+                                LlmApiFormat.ANTHROPIC_MESSAGES ->
+                                    stringResource(R.string.api_format_anthropic_short)
+                            },
+                        )
+                    }
+                }
+            }
+            Text(
+                when (apiFormat) {
+                    LlmApiFormat.OPENAI_CHAT_COMPLETIONS ->
+                        stringResource(R.string.api_format_openai_desc)
+                    LlmApiFormat.ANTHROPIC_MESSAGES ->
+                        stringResource(R.string.api_format_anthropic_desc)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
                 value = apiKey,
@@ -129,6 +168,16 @@ fun SettingsScreen(onBack: () -> Unit) {
                 value = maxTurns,
                 onValueChange = { maxTurns = it },
                 label = { Text(stringResource(R.string.label_max_agent_turns)) },
+                singleLine = true,
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = maxLlmHistory,
+                onValueChange = { maxLlmHistory = it },
+                label = { Text(stringResource(R.string.label_max_llm_history_messages)) },
+                placeholder = { Text("6") },
+                supportingText = { Text(stringResource(R.string.support_max_llm_history_messages)) },
                 singleLine = true,
             )
             Spacer(Modifier.height(20.dp))
@@ -168,7 +217,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                     settings.anthropicApiKey = apiKey.trim()
                     settings.anthropicBaseUrl = baseUrl.trim()
                     settings.model = model.trim()
+                    settings.llmApiFormat = apiFormat
                     settings.maxTurns = maxTurns.toIntOrNull() ?: 24
+                    settings.maxLlmHistoryAssistantMessages = maxLlmHistory.toIntOrNull()?.coerceIn(1, 256) ?: 6
                     onBack()
                 },
                 modifier = Modifier.fillMaxWidth(),

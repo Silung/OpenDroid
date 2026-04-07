@@ -28,6 +28,8 @@
     <string name="tool_use_id_line">tool_use_id: %1$s</string>
     <string name="parameters">Arguments</string>
     <string name="result_chars">Result (%1$d chars)</string>
+    <string name="tool_screenshot_result_legend">JSON metadata only (~%1$d chars); JPEG preview below.</string>
+    <string name="cd_tool_screenshot_thumbnail">Screenshot thumbnail</string>
     <string name="input_message_placeholder">Message…</string>
     <string name="stop_current_task">Stop current task</string>
     <string name="send">Send</string>
@@ -42,9 +44,17 @@
     <string name="back">Back</string>
     <string name="label_api_key">API Key</string>
     <string name="hint_api_key_default">Leave empty to use the build-injected default</string>
+    <string name="label_api_format">API format</string>
+    <string name="api_format_openai_short">OpenAI compatible</string>
+    <string name="api_format_anthropic_short">Anthropic</string>
+    <string name="api_format_openai_desc">/v1/chat/completions (SiliconFlow multimodal, screenshots as image_url)</string>
+    <string name="api_format_anthropic_desc">/v1/messages (Anthropic Messages API)</string>
+    <string name="llm_api_key_required">Add an API key in Settings first.</string>
     <string name="label_base_url">Base URL</string>
     <string name="label_model">Model</string>
     <string name="label_max_agent_turns">Max agent turns</string>
+    <string name="label_max_llm_history_messages">Max assistant messages in context</string>
+    <string name="support_max_llm_history_messages">Counts Assistant role only; User messages are not capped separately (they remain inside the trimmed window). Default 6.</string>
     <string name="overlay_output_title">Overlay output</string>
     <string name="overlay_output_desc">Shown only while the agent is thinking; closes about 5s after the turn ends. Semi-transparent, non-interactive. Needs “Display over other apps”; Android 13+ may require notification permission.</string>
     <string name="save_and_back">Save &amp; back</string>

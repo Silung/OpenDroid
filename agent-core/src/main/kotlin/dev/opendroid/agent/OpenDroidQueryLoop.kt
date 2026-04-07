@@ -22,6 +22,8 @@ sealed class QueryLoopEvent {
         val resultTotalChars: Int,
         /** Substring for UI. get_ui_tree 会话内会再压缩；历史轮次在请求模型前会替换为占位。 */
         val resultPreview: String,
+        /** capture_screenshot 等：与发往模型相同的图，供界面缩略图。 */
+        val resultImages: List<ToolResultImage> = emptyList(),
     ) : QueryLoopEvent()
 
     /** 估算负载过大时，已用模型将更早消息压缩为摘要（见 [ConversationCompactConfig]）。 */
@@ -45,6 +47,7 @@ class OpenDroidQueryLoop(
     private val llm: LlmClient,
     private val tools: List<ToolDefinition>,
     private val toolExecutor: ToolExecutor,
+    private val toolTrafficLogger: AgentToolTrafficLogger? = null,
     private val toolResultUiPreviewChars: Int = 14_000,
     /** 写入会话的 get_ui_tree 正文上限（minify 后再截断）。 */
     private val getUiTreeStorageMaxChars: Int = UiTreeCompaction.DEFAULT_STORAGE_MAX_CHARS,
@@ -55,6 +58,11 @@ class OpenDroidQueryLoop(
     private val getUiTreeHistoryStub: String = "[OpenDroid] 历史 get_ui_tree 已省略以省 token；若需该屏信息请再次 get_ui_tree。",
     /** 已从会话中移除截图 blob 后写入的占位（每轮 completeTurn 后剥离 JPEG，避免重复发送）。 */
     private val captureScreenshotHistoryStub: String = UiTreeCompaction.DEFAULT_CAPTURE_SCREENSHOT_HISTORY_STUB,
+    /**
+     * 每轮 [LlmClient.completeTurn] 时，发往模型的上下文中至多保留最近这么多条 **Assistant**；
+     * User 条数不设此上限（随前缀截断自然变化）。见 [sliceChatMessagesForLlmRequest]。
+     */
+    private val maxLlmHistoryAssistantMessages: Int = 6,
 ) {
     private val loopJson = Json { prettyPrint = false; ignoreUnknownKeys = true }
 
@@ -76,6 +84,7 @@ class OpenDroidQueryLoop(
 
     private suspend fun runSingleToolUse(
         tool: ContentBlock.ToolUse,
+        agentLoopTurn: Int,
         emit: suspend (QueryLoopEvent) -> Unit,
     ): ContentBlock.ToolResult {
         val inputSummary = summarizeToolInput(tool.input)
@@ -83,6 +92,14 @@ class OpenDroidQueryLoop(
         val t0 = System.nanoTime()
         val exec = toolExecutor.execute(tool.id, tool.name, tool.input)
         val durationMs = (System.nanoTime() - t0) / 1_000_000L
+        toolTrafficLogger?.onToolFinished(
+            agentLoopTurn,
+            tool.name,
+            tool.id,
+            exec.text,
+            exec.images,
+            ok = !exec.isError,
+        )
         val text = exec.text
         val textForConversation = if (tool.name == "get_ui_tree" && !exec.isError) {
             UiTreeCompaction.minifyAndCap(text, getUiTreeStorageMaxChars)
@@ -91,8 +108,15 @@ class OpenDroidQueryLoop(
         }
         val previewCap = toolResultUiPreviewChars.coerceAtLeast(500)
         val preview = if (exec.images.isNotEmpty()) {
-            val meta = if (text.length <= 400) text else text.take(400) + "…"
-            "截图已发给模型（${exec.images.size} 张）\n$meta"
+            val meta = if (text.length <= 600) text else text.take(600) + "…"
+            val n = exec.images.size
+            val head =
+                if (n == 1) {
+                    "JPEG 已附加在请求中。以下为工具返回的元数据（宽/高等），完整画面见应用内缩略图。"
+                } else {
+                    "已附加 $n 张 JPEG。以下为元数据摘要，画面见下方缩略图。"
+                }
+            "$head\n\n$meta"
         } else if (text.length <= previewCap) {
             text
         } else {
@@ -108,6 +132,7 @@ class OpenDroidQueryLoop(
                 durationMs = durationMs,
                 resultTotalChars = text.length,
                 resultPreview = preview,
+                resultImages = exec.images,
             ),
         )
         return ContentBlock.ToolResult(
@@ -202,6 +227,8 @@ class OpenDroidQueryLoop(
         try {
             val userBlocks = listOf(ContentBlock.Text(userText))
             conversation.add(ChatMessage(ChatRole.User, userBlocks))
+            /** 本轮用户自然语言在 [conversation] 中的下标；多轮 tool 期间不变，供切片固定保留。 */
+            val pinnedUserMessageIndex = conversation.lastIndex
             emit(QueryLoopEvent.UserTurnAdded(userText.take(200)))
 
             var turnIndex = 0
@@ -212,7 +239,13 @@ class OpenDroidQueryLoop(
                 }
                 turnIndex++
                 maybeCompactConversation(systemPrompt, conversation, model, maxTokens, emit)
-                val messagesForLlm = buildMessagesForLlm(conversation.toList())
+                val messagesForLlm = buildMessagesForLlm(
+                    sliceChatMessagesForLlmRequest(
+                        messages = conversation.toList(),
+                        maxAssistantMessages = maxLlmHistoryAssistantMessages,
+                        firstMessageIndexToKeep = pinnedUserMessageIndex,
+                    ),
+                )
                 val turnResult = llm.completeTurn(
                     LlmRequest(
                         systemPrompt = systemPrompt,
@@ -253,11 +286,11 @@ class OpenDroidQueryLoop(
                 val resultBlocks = mutableListOf<ContentBlock>()
                 for (batch in OpenDroidToolConcurrency.partitionConsecutiveSafeBatches(toolBlocks)) {
                     if (batch.size <= 1) {
-                        resultBlocks.add(runSingleToolUse(batch.single(), emit))
+                        resultBlocks.add(runSingleToolUse(batch.single(), turnIndex, emit))
                     } else {
                         coroutineScope {
                             val parts = batch.map { tool ->
-                                async { runSingleToolUse(tool, emit) }
+                                async { runSingleToolUse(tool, turnIndex, emit) }
                             }.awaitAll()
                             resultBlocks.addAll(parts)
                         }

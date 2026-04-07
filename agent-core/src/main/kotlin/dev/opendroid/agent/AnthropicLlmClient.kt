@@ -38,6 +38,7 @@ class AnthropicLlmClient(
     private val anthropicVersion: String = "2023-06-01",
     client: OkHttpClient? = null,
     maxRetries: Int = DEFAULT_MAX_RETRIES,
+    private val trafficLogger: LlmTurnTrafficLogger? = null,
 ) : LlmClient {
 
     private val maxRetries = maxRetries.coerceAtLeast(1)
@@ -57,16 +58,20 @@ class AnthropicLlmClient(
         request: LlmRequest,
         onTextDelta: suspend (String) -> Unit,
     ): Result<AssistantTurnResult> = withContext(Dispatchers.IO) {
-        val httpReq = buildHttpRequest(request)
+        val bodyJson = buildRequestBodyJson(request)
         var lastError: Exception? = null
         repeat(maxRetries) { attemptIndex ->
+            val httpReq = buildHttpRequestFromBody(bodyJson)
             try {
-                val result = executeStreamingTurn(httpReq, onTextDelta)
+                val (result, sseRaw) = executeStreamingTurn(httpReq, onTextDelta)
+                trafficLogger?.onLlmExchange(attemptIndex, bodyJson, sseRaw, result, null)
                 return@withContext Result.success(result)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: AnthropicApiException) {
                 lastError = e
+                val errBody = e.rawHttpBody.orEmpty()
+                trafficLogger?.onLlmExchange(attemptIndex, bodyJson, errBody, null, e)
                 val isLast = attemptIndex >= maxRetries - 1
                 if (!shouldRetryAnthropic(e) || isLast) {
                     return@withContext Result.failure(e)
@@ -75,6 +80,7 @@ class AnthropicLlmClient(
                 delay(computeRetryDelayMs(attemptIndex + 1, e.retryAfterMillisHint))
             } catch (e: IOException) {
                 lastError = e
+                trafficLogger?.onLlmExchange(attemptIndex, bodyJson, "", null, e)
                 val isLast = attemptIndex >= maxRetries - 1
                 if (isLast) {
                     return@withContext Result.failure(e)
@@ -82,6 +88,7 @@ class AnthropicLlmClient(
                 coroutineContext.ensureActive()
                 delay(computeRetryDelayMs(attemptIndex + 1, null))
             } catch (e: Exception) {
+                trafficLogger?.onLlmExchange(attemptIndex, bodyJson, "", null, e)
                 try {
                     coroutineContext.ensureActive()
                 } catch (ce: CancellationException) {
@@ -93,7 +100,7 @@ class AnthropicLlmClient(
         Result.failure(lastError ?: IllegalStateException("Anthropic: exhausted retries"))
     }
 
-    private fun buildHttpRequest(request: LlmRequest): Request {
+    private fun buildRequestBodyJson(request: LlmRequest): String {
         val bodyJson = buildJsonObject {
             put("model", JsonPrimitive(request.model))
             put("max_tokens", JsonPrimitive(request.maxTokens))
@@ -117,19 +124,22 @@ class AnthropicLlmClient(
                 )
             }
         }
-        return Request.Builder()
-            .url("$baseUrl/v1/messages")
+        return json.encodeToString(JsonObject.serializer(), bodyJson)
+    }
+
+    private fun buildHttpRequestFromBody(bodyJson: String): Request =
+        Request.Builder()
+            .url(anthropicMessagesEndpoint(baseUrl))
             .addHeader("x-api-key", apiKey)
             .addHeader("anthropic-version", anthropicVersion)
             .addHeader("content-type", "application/json")
-            .post(json.encodeToString(JsonObject.serializer(), bodyJson).toRequestBody(JSON_MEDIA))
+            .post(bodyJson.toRequestBody(JSON_MEDIA))
             .build()
-    }
 
     private suspend fun executeStreamingTurn(
         httpReq: Request,
         onTextDelta: suspend (String) -> Unit,
-    ): AssistantTurnResult {
+    ): Pair<AssistantTurnResult, String> {
         val call = http.newCall(httpReq)
         coroutineContext.job.invokeOnCompletion { call.cancel() }
         call.execute().use { response ->
@@ -139,18 +149,31 @@ class AnthropicLlmClient(
                 val retryAfterSec = response.header("Retry-After")?.toLongOrNull()
                 val retryFromHeaderMs = retryAfterSec?.times(1000)
                 val retryHintMs = retryFromHeaderMs ?: parsed.retryAfterMillisFromBody
+                val clipped = if (errBody.length > MAX_DEBUG_HTTP_BODY_CHARS) {
+                    errBody.take(MAX_DEBUG_HTTP_BODY_CHARS) + "\n…（已截断）"
+                } else {
+                    errBody
+                }
                 throw AnthropicApiException(
                     statusCode = response.code,
                     message = formatHttpApiError(response.code, parsed.message, parsed.requestId),
                     requestId = parsed.requestId,
                     retryAfterMillisHint = retryHintMs,
+                    rawHttpBody = clipped,
                 )
             }
             val body = response.body
-                ?: throw AnthropicApiException(0, "Anthropic: empty response body", null, null)
-            body.byteStream().bufferedReader().use { reader ->
-                return parseSseLines(reader.lineSequence(), onTextDelta)
-            }
+                ?: throw AnthropicApiException(
+                    0,
+                    "Anthropic: empty response body",
+                    null,
+                    null,
+                    null,
+                )
+            val lines = body.byteStream().bufferedReader().use { it.readLines() }
+            val sseRaw = lines.joinToString("\n") + "\n"
+            val result = parseSseLines(lines.asSequence(), onTextDelta)
+            return result to sseRaw
         }
     }
 
@@ -229,6 +252,7 @@ class AnthropicLlmClient(
                         message = "Anthropic stream error: $detail",
                         requestId = reqId,
                         retryAfterMillisHint = null,
+                        rawHttpBody = payload.take(MAX_DEBUG_HTTP_BODY_CHARS),
                     )
                 }
                 "content_block_start" -> {
@@ -316,6 +340,9 @@ class AnthropicLlmClient(
     companion object {
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 
+        /** 记入 [AnthropicApiException.rawHttpBody] / SSE error 事件时的最大长度，避免巨包拖垮 I/O。 */
+        private const val MAX_DEBUG_HTTP_BODY_CHARS = 512_000
+
         /** 与 claude-code `DEFAULT_MAX_RETRIES` 同量级；移动端可略少。 */
         private const val DEFAULT_MAX_RETRIES = 8
         private const val BASE_DELAY_MS = 500L
@@ -352,4 +379,14 @@ class AnthropicLlmClient(
             return base + jitter
         }
     }
+}
+
+/**
+ * 构建 Anthropic Messages API URL。若 base 已以 `/v1` 结尾（如默认 `https://api.siliconflow.cn/v1`），不再重复拼接。
+ * 归一化规则与 [openAiChatCompletionsEndpoint] 一致。
+ */
+fun anthropicMessagesEndpoint(baseUrlRaw: String): String {
+    val trimmed = baseUrlRaw.trim().trimEnd('/')
+    val base = if (trimmed.endsWith("/v1", ignoreCase = true)) trimmed else "$trimmed/v1"
+    return "$base/messages"
 }
