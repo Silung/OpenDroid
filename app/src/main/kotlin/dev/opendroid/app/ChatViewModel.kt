@@ -4,7 +4,17 @@ package dev.opendroid.app
 
 import android.app.Application
 
+import android.media.MediaRecorder
+
+import android.os.Build
+
 import android.provider.Settings
+
+import dev.opendroid.app.asr.AsrHttpException
+
+import dev.opendroid.app.asr.SiliconFlowAsrClient
+
+import java.io.File
 
 import androidx.lifecycle.AndroidViewModel
 
@@ -27,6 +37,8 @@ import dev.opendroid.app.session.ChatSessionRepository
 import dev.opendroid.app.session.SessionSummary
 
 import dev.opendroid.app.session.deriveSessionTitle
+
+import dev.opendroid.app.R
 
 import dev.opendroid.device.opendroidDeviceToolExecutor
 
@@ -116,13 +128,13 @@ For get_ui_tree: add keyword, maxDepth, maxNodes, compact, hideNonVisible when h
 
 **Hostile / sparse trees:** OpenDroid 只提供 **一项** 无障碍服务（系统中名称可与「随选朗读」组件相同）。若 **`{}` 与调参后树仍异常**，可再试带 **`\"accessibilityTreeSource\": \"whitelist_compat\"`**（与当前默认实为同一连接，便于固定重试流程）。若返回 **`accessibility_service_disabled`**，根据 **hint** 请用户在 设置 → 无障碍 中开启该项。
 
-**If a parameterized get_ui_tree looks wrong or incomplete** (bad keyword/packageName, depth/nodes too tight, missing whole regions, tree empty or implausible): **call get_ui_tree again with `{}`** — no filters, tool defaults — to get a broader picture. Only **after that** still fails should you use capture_screenshot. Do not jump straight to screenshot when parameters were probably the issue.
+**If a parameterized get_ui_tree looks wrong or incomplete** (bad keyword/packageName, depth/nodes too tight, missing whole regions, tree empty or implausible): **call get_ui_tree again with `{}`** — no filters, tool defaults — to get a broader picture. **Do not** use capture_screenshot to fix bad tool parameters. **But:** if the broad `{}` tree is still **not enough** — e.g. it is non-empty yet **omits** whole interactive areas, overlays, sheets, or animated layers you can infer from context — treat that as **tree logically incomplete** and move on to capture_screenshot (vision) instead of looping on get_ui_tree alone.
 
 Bounds `b` are **absolute screen pixels** (same space as Android getBoundsInScreen). For tap, swipe, long_press, and drag: use **`normalized: false`** (or omit it) and pass **pixel** x/y — e.g. tap center `((l+r)/2, (t+bt)/2)`. Do **not** use normalized=true with tree pixel values.
 
-Use capture_screenshot only when: (1) you already retried **parameterless `{}` get_ui_tree** and the tree is still empty, tiny, or unusable; (2) WebView / custom surfaces / paywalls make the tree unreliable; (3) after those checks you still cannot find or verify the control; (4) repeated gestures show no UI change and tree stays unhelpful — then capture JPEG for vision instead of blind repeats.
+**When to use capture_screenshot (vision):** Prefer trees when they are trustworthy; use JPEG when the tree cannot ground your next action. Call capture_screenshot after a quick **`{}` get_ui_tree** baseline whenever **any** of the following hold — you do **not** need the tree to be literally empty: (1) **Animations / transitions / splash / video / games / heavy motion**: the snapshotted tree may lag the pixels on screen; use **agent_wait** (e.g. 500–2000 ms), re-get the tree once, then **capture_screenshot** if the UI still does not line up with what you need. (2) **WebView, hybrid, custom drawing, paywalls**, or UIs where labels exist but **targets or hit areas** are missing or wrong. (3) The tree **looks plausible but you cannot find** the control the user cares about, or **repeated taps** do not match visible feedback. (4) You must **verify** what the user sees (layout, icons, disabled state) and the tree does not expose it. After a screenshot, **prefer tree bounds** for taps when the node exists; if the tree has no node for the target, **estimate screen-pixel coordinates from the image** (same coordinate space as bounds: origin top-left, match image width/height to the metadata JSON) and tap with **`normalized: false`**.
 
-**capture_screenshot result shape:** The tool_result **text** is **metadata JSON only** (width, height, ok, etc.). The **screenshot is attached as image block(s)** to that same tool result for vision — do not expect base64 or pixels inside the text string. Prefer **`{}`** for parameters unless you must reduce image size (maxLongEdge/maxShortEdge are downscale **caps**, not request dimensions). After vision, still align taps with **get_ui_tree** pixel bounds when possible.
+**capture_screenshot result shape:** The tool_result **text** is **metadata JSON only** (width, height, ok, etc.). The **screenshot is attached as image block(s)** to that same tool result for vision — do not expect base64 or pixels inside the text string. Prefer **`{}`** for parameters unless you must reduce image size (maxLongEdge/maxShortEdge are downscale **caps**, not request dimensions).
 
 Use agent_wait(duration_ms) to wait for animations, page loads, or when the user asks to pause; keep waits modest (often 500–2000 ms).
 
@@ -171,6 +183,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _input = MutableStateFlow("")
 
     val input: StateFlow<String> = _input.asStateFlow()
+
+
+
+    private val _asrBusy = MutableStateFlow(false)
+
+    val asrBusy: StateFlow<Boolean> = _asrBusy.asStateFlow()
+
+
+
+    private val _voiceRecording = MutableStateFlow(false)
+
+    val voiceRecording: StateFlow<Boolean> = _voiceRecording.asStateFlow()
+
+
+
+    private var mediaRecorder: MediaRecorder? = null
+
+    private var recordingOutput: File? = null
 
 
 
@@ -433,6 +463,232 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun updateInput(value: String) {
 
         _input.value = value
+
+    }
+
+
+
+    fun startVoiceRecording() {
+
+        if (_busy.value || _asrBusy.value || _voiceRecording.value) return
+
+        val app = getApplication<Application>()
+
+        viewModelScope.launch(Dispatchers.Main) {
+
+            val file = File(app.cacheDir, "asr_${System.currentTimeMillis()}.m4a")
+
+            val recorder = buildMediaRecorder(app, file)
+
+            try {
+
+                recorder.prepare()
+
+                recorder.start()
+
+                mediaRecorder = recorder
+
+                recordingOutput = file
+
+                _voiceRecording.value = true
+
+            } catch (_: Exception) {
+
+                runCatching {
+
+                    recorder.release()
+
+                }
+
+                file.delete()
+
+                _lines.update { it + ChatLine.System(app.getString(R.string.voice_recording_start_failed)) }
+
+            }
+
+        }
+
+    }
+
+
+
+    fun stopVoiceRecordingAndTranscribe() {
+
+        if (!_voiceRecording.value) return
+
+        val file = recordingOutput
+
+        releaseMediaRecorderOnly()
+
+        recordingOutput = null
+
+        _voiceRecording.value = false
+
+        if (file == null || !file.isFile) return
+
+        viewModelScope.launch {
+
+            _asrBusy.value = true
+
+            val app = getApplication<Application>()
+
+            try {
+
+                val key = settings.anthropicApiKey
+
+                if (key.isBlank()) {
+
+                    _lines.update { it + ChatLine.System(app.getString(R.string.voice_need_api_key)) }
+
+                    return@launch
+
+                }
+
+                val result = withContext(Dispatchers.IO) {
+
+                    SiliconFlowAsrClient.transcribe(
+
+                        apiKey = key,
+
+                        baseUrl = settings.anthropicBaseUrl,
+
+                        audioFile = file,
+
+                    )
+
+                }
+
+                result.fold(
+
+                    onSuccess = { text ->
+
+                        val t = text.trim()
+
+                        if (t.isNotEmpty()) {
+
+                            _input.update { cur -> if (cur.isBlank()) t else "$cur $t" }
+
+                        } else {
+
+                            _lines.update { it + ChatLine.System(app.getString(R.string.voice_asr_empty)) }
+
+                        }
+
+                    },
+
+                    onFailure = { e ->
+
+                        val line = when (e) {
+
+                            is AsrHttpException -> app.getString(R.string.voice_asr_http_error, e.code)
+
+                            else -> app.getString(R.string.voice_asr_failed, e.message ?: e.javaClass.simpleName)
+
+                        }
+
+                        _lines.update { it + ChatLine.System(line) }
+
+                    },
+
+                )
+
+            } finally {
+
+                file.delete()
+
+                _asrBusy.value = false
+
+            }
+
+        }
+
+    }
+
+
+
+    private fun buildMediaRecorder(context: Application, output: File): MediaRecorder {
+
+        val r = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+
+            MediaRecorder(context)
+
+        } else {
+
+            @Suppress("DEPRECATION")
+
+            MediaRecorder()
+
+        }
+
+        r.setAudioSource(MediaRecorder.AudioSource.MIC)
+
+        r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+
+        r.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+
+        r.setAudioEncodingBitRate(128_000)
+
+        r.setAudioSamplingRate(44_100)
+
+        r.setOutputFile(output.absolutePath)
+
+        return r
+
+    }
+
+
+
+    private fun releaseMediaRecorderOnly() {
+
+        mediaRecorder?.apply {
+
+            try {
+
+                stop()
+
+            } catch (_: Throwable) {
+
+            }
+
+            try {
+
+                reset()
+
+            } catch (_: Throwable) {
+
+            }
+
+            try {
+
+                release()
+
+            } catch (_: Throwable) {
+
+            }
+
+        }
+
+        mediaRecorder = null
+
+    }
+
+
+
+    override fun onCleared() {
+
+        super.onCleared()
+
+        if (_voiceRecording.value) {
+
+            releaseMediaRecorderOnly()
+
+            recordingOutput?.delete()
+
+            recordingOutput = null
+
+            _voiceRecording.value = false
+
+        }
 
     }
 

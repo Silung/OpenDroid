@@ -1,5 +1,9 @@
 package dev.opendroid.app.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -55,6 +60,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.semantics.contentDescription
@@ -139,6 +145,8 @@ fun ChatScreen(
 ) {
     val lines by vm.lines.collectAsState()
     val busy by vm.busy.collectAsState()
+    val asrBusy by vm.asrBusy.collectAsState()
+    val voiceRecording by vm.voiceRecording.collectAsState()
     val input by vm.input.collectAsState()
     val sessions by vm.sessions.collectAsState()
     val activeSessionId by vm.activeSessionId.collectAsState()
@@ -148,6 +156,12 @@ fun ChatScreen(
     val chatListState = rememberLazyListState()
     val sessionTimeFormat = remember {
         SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+    }
+    val micPermission = Manifest.permission.RECORD_AUDIO
+    val micLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) vm.startVoiceRecording()
     }
 
     LaunchedEffect(lines, busy) {
@@ -428,6 +442,34 @@ fun ChatScreen(
                     maxLines = 4,
                     shape = composerFieldShape,
                     placeholder = { Text(stringResource(R.string.input_message_placeholder)) },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = {
+                                when {
+                                    voiceRecording -> vm.stopVoiceRecordingAndTranscribe()
+                                    busy || asrBusy -> Unit
+                                    ContextCompat.checkSelfPermission(context, micPermission) !=
+                                        PackageManager.PERMISSION_GRANTED ->
+                                        micLauncher.launch(micPermission)
+                                    else -> vm.startVoiceRecording()
+                                }
+                            },
+                            enabled = (!busy && !asrBusy) || voiceRecording,
+                            modifier = Modifier.semantics {
+                                contentDescription = context.getString(R.string.cd_voice_input)
+                            },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Mic,
+                                contentDescription = null,
+                                tint = if (voiceRecording) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        }
+                    },
                 )
                 if (busy) {
                     Button(

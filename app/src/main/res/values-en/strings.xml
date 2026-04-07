@@ -31,6 +31,12 @@
     <string name="input_message_placeholder">Message…</string>
     <string name="stop_current_task">Stop current task</string>
     <string name="send">Send</string>
+    <string name="cd_voice_input">Voice input</string>
+    <string name="voice_recording_start_failed">Could not start recording. Check microphone permission and that it is not in use.</string>
+    <string name="voice_need_api_key">Speech recognition uses the same API key as chat. Add it in Settings first.</string>
+    <string name="voice_asr_empty">Speech recognition returned empty text.</string>
+    <string name="voice_asr_failed">Speech recognition failed: %1$s</string>
+    <string name="voice_asr_http_error">Speech recognition request failed (HTTP %1$d).</string>
 
     <string name="settings_title">Settings</string>
     <string name="back">Back</string>
