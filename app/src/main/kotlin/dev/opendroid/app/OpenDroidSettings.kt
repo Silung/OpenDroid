@@ -26,7 +26,7 @@ enum class LlmApiFormat(val prefValue: String) {
 }
 
 /**
- * 用户在设置中填写的内容存加密偏好；**留空**表示使用 [BuildConfig] 默认值（由 local.properties 或 CI 环境变量注入）。
+ * 用户在设置中填写的内容存加密偏好；**留空**表示使用 [OpenDroidEndpointDefaults]（编译期来自 local.properties，见该类说明）。
  */
 class OpenDroidSettings(context: Context) {
 
@@ -48,16 +48,23 @@ class OpenDroidSettings(context: Context) {
         set(value) = prefs.edit().putString(KEY_API, value).apply()
 
     var anthropicBaseUrl: String
-        get() = prefs.getString(KEY_BASE, "").orEmpty().ifBlank { BuildConfig.DEFAULT_LLM_BASE_URL }
+        get() = prefs.getString(KEY_BASE, "").orEmpty().ifBlank { OpenDroidEndpointDefaults.llmBaseUrl }
         set(value) = prefs.edit().putString(KEY_BASE, value).apply()
 
     var model: String
-        get() = prefs.getString(KEY_MODEL, "").orEmpty().ifBlank { BuildConfig.DEFAULT_LLM_MODEL }
+        get() = prefs.getString(KEY_MODEL, "").orEmpty().ifBlank { OpenDroidEndpointDefaults.llmModel }
         set(value) = prefs.edit().putString(KEY_MODEL, value).apply()
 
-    /** 默认 OpenAI 兼容（硅基流动多模态文档路径）。 */
+    /**
+     * OpenAI 兼容 `/v1/chat/completions` 与 Anthropic `/v1/messages`。
+     * 设置里未保存过时回落 [OpenDroidEndpointDefaults.llmApiFormat]（`local.properties`：`opendroid.default.llm.api.format`）。
+     */
     var llmApiFormat: LlmApiFormat
-        get() = LlmApiFormat.fromPref(prefs.getString(KEY_API_FORMAT, null))
+        get() {
+            val raw = prefs.getString(KEY_API_FORMAT, "").orEmpty()
+            if (raw.isNotBlank()) return LlmApiFormat.fromPref(raw)
+            return OpenDroidEndpointDefaults.llmApiFormat
+        }
         set(value) = prefs.edit().putString(KEY_API_FORMAT, value.prefValue).apply()
 
     fun llmApiFormatStoredRaw(): String = prefs.getString(KEY_API_FORMAT, "").orEmpty()
@@ -73,24 +80,46 @@ class OpenDroidSettings(context: Context) {
         get() = prefs.getString(KEY_MAX_TURNS, "24")?.toIntOrNull() ?: 24
         set(value) = prefs.edit().putString(KEY_MAX_TURNS, value.coerceIn(1, 256).toString()).apply()
 
-    /**
-     * 每轮请求 LLM 时，上下文中至多保留最近多少条 **Assistant**；User 不设此项上限。
-     * 见 [dev.opendroid.agent.sliceChatMessagesForLlmRequest]。
-     */
-    var maxLlmHistoryAssistantMessages: Int
-        get() = prefs.getString(KEY_MAX_LLM_HISTORY, "6")?.toIntOrNull()?.coerceIn(1, 256) ?: 6
-        set(value) = prefs.edit().putString(KEY_MAX_LLM_HISTORY, value.coerceIn(1, 256).toString()).apply()
-
-    fun maxLlmHistoryAssistantMessagesStoredRaw(): String = prefs.getString(KEY_MAX_LLM_HISTORY, "").orEmpty()
-
     var overlayEnabled: Boolean
         get() = prefs.getBoolean(KEY_OVERLAY, false)
         set(value) = prefs.edit().putBoolean(KEY_OVERLAY, value).apply()
+
+    /**
+     * 开启后，发往 LLM 的请求中 **移除** `tool_result` 附带的截图二进制（仅保留 JSON 正文，如 omniparser）。
+     * 适用于不支持多模态的纯文本模型；会话与界面仍保存截图元数据，聊天缩略图逻辑不变。
+     */
+    var llmOmitToolResultImages: Boolean
+        get() = prefs.getBoolean(KEY_LLM_OMIT_TOOL_IMAGES, false)
+        set(value) = prefs.edit().putBoolean(KEY_LLM_OMIT_TOOL_IMAGES, value).apply()
 
     /** 当前聊天会话 id，位于 filesDir/chat_sessions/ */
     var currentChatSessionId: String
         get() = prefs.getString(KEY_CHAT_SESSION, "").orEmpty()
         set(value) = prefs.edit().putString(KEY_CHAT_SESSION, value).apply()
+
+    /**
+     * 是否对截图发起 OmniParser 请求并合并 `omniparser` 字段。关闭时仍保留 URL/Key 配置以便下次开启。
+     */
+    var omniparserEnabled: Boolean
+        get() = prefs.getBoolean(KEY_OMNI_ENABLED, true)
+        set(value) = prefs.edit().putBoolean(KEY_OMNI_ENABLED, value).apply()
+
+    /**
+     * OmniParser `POST /parse/` 完整 URL。偏好留空时回落 [OpenDroidEndpointDefaults.omniparserParseUrl]（未在 local.properties 配置则为空，即不请求）。
+     */
+    var omniparserParseUrl: String
+        get() = prefs.getString(KEY_OMNI_PARSE_URL, "").orEmpty()
+            .ifBlank { OpenDroidEndpointDefaults.omniparserParseUrl }
+        set(value) = prefs.edit().putString(KEY_OMNI_PARSE_URL, value).apply()
+
+    /** 可选；与服务端 `OMNIPARSER_API_KEY` / `--api-key` 对应。 */
+    var omniparserApiKey: String
+        get() = prefs.getString(KEY_OMNI_API_KEY, "").orEmpty()
+        set(value) = prefs.edit().putString(KEY_OMNI_API_KEY, value).apply()
+
+    fun omniparserParseUrlStoredRaw(): String = prefs.getString(KEY_OMNI_PARSE_URL, "").orEmpty()
+
+    fun omniparserApiKeyStoredRaw(): String = prefs.getString(KEY_OMNI_API_KEY, "").orEmpty()
 
     companion object {
         private const val KEY_API = "anthropic_api_key"
@@ -98,8 +127,11 @@ class OpenDroidSettings(context: Context) {
         private const val KEY_MODEL = "anthropic_model"
         private const val KEY_API_FORMAT = "llm_api_format"
         private const val KEY_MAX_TURNS = "agent_max_turns"
-        private const val KEY_MAX_LLM_HISTORY = "max_llm_history_messages"
         private const val KEY_OVERLAY = "overlay_enabled"
         private const val KEY_CHAT_SESSION = "current_chat_session_id"
+        private const val KEY_OMNI_ENABLED = "omniparser_enabled"
+        private const val KEY_OMNI_PARSE_URL = "omniparser_parse_url"
+        private const val KEY_OMNI_API_KEY = "omniparser_api_key"
+        private const val KEY_LLM_OMIT_TOOL_IMAGES = "llm_omit_tool_result_images"
     }
 }

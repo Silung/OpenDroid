@@ -30,8 +30,22 @@ private const val CAPTURE_SCREENSHOT_MAX_EDGE_CAP: Int = 16384
 private const val CAPTURE_SCREENSHOT_MIN_EDGE_CAP: Int = 64
 private const val CAPTURE_SCREENSHOT_DEFAULT_MAX_EDGE: Int = CAPTURE_SCREENSHOT_MAX_EDGE_CAP
 
+/** [getUiTree] 判定首次结果偏稀疏时，短暂等待 UI 稳定后再抓一次的间隔。 */
+private const val GET_UI_TREE_REFETCH_DELAY_MS = 175L
+
+/** 二次抓取：至少达到的 depth / maxNodes（在调用入参与上限范围内取较大者）。 */
+private const val GET_UI_TREE_BROADER_MIN_DEPTH = 18
+private const val GET_UI_TREE_BROADER_MIN_MAX_NODES = 1400
+
+/** 序列化后总字符低于此值 → 可能触发二次抓取（与节点数等条件组合）。 */
+private const val GET_UI_TREE_SPARSE_MIN_ENCODED_CHARS = 420
+
+/** [nodesCaptured] 低于此值（且 &gt;0）视为树过薄。 */
+private const val GET_UI_TREE_SPARSE_MAX_NODES_CAPTURED = 28
+
 class AndroidDeviceBridge(
     app: Context,
+    private val omniparserConfig: OmniparserParseConfig = OmniparserParseConfig.Disabled,
 ) {
     private val appContext = app.applicationContext
     private val json = Json { prettyPrint = false }
@@ -144,21 +158,53 @@ class AndroidDeviceBridge(
         val hideNonVisible = input.optBoolean("hideNonVisible", true)
         val packageNameFilter = input.optString("packageName", "").trim()
         val keyword = input.optString("keyword", "").trim()
-        val tree = svc.captureUiForestJson(
+        val pkgOpt = packageNameFilter.takeIf { it.isNotEmpty() }
+
+        fun mergeAndWrap(raw: JsonObject): JsonObject {
+            val merged =
+                if (keyword.isNotEmpty()) {
+                    filterUiForestByKeyword(raw, keyword)
+                } else {
+                    raw
+                }
+            return jsonTreeWithAccessibilitySource(merged, treeSource)
+        }
+
+        val treeFirst = svc.captureUiForestJson(
             maxDepth = depth,
             compact = compact,
             maxNodes = maxNodes,
             hideNonVisible = hideNonVisible,
-            packageNameFilter = packageNameFilter.takeIf { it.isNotEmpty() },
+            packageNameFilter = pkgOpt,
         )
-        val merged =
-            if (keyword.isNotEmpty()) {
-                filterUiForestByKeyword(tree, keyword)
-            } else {
-                tree
+        var finalOut = mergeAndWrap(treeFirst)
+        var finalEncodedLen = json.encodeToString(JsonObject.serializer(), finalOut).length
+
+        if (shouldRefetchUiTreeForSparseResult(finalOut, finalEncodedLen)) {
+            delay(GET_UI_TREE_REFETCH_DELAY_MS)
+            val depth2 = maxOf(depth, GET_UI_TREE_BROADER_MIN_DEPTH).coerceAtMost(32)
+            val maxNodes2 = maxOf(maxNodes, GET_UI_TREE_BROADER_MIN_MAX_NODES).coerceAtMost(2000)
+            val treeSecond = svc.captureUiForestJson(
+                maxDepth = depth2,
+                compact = false,
+                maxNodes = maxNodes2,
+                hideNonVisible = false,
+                packageNameFilter = pkgOpt,
+            )
+            val candidate = mergeAndWrap(treeSecond).let { base ->
+                buildJsonObject {
+                    base.forEach { (k, v) -> put(k, v) }
+                    put("openDroidUiTreeRefetchedBroader", JsonPrimitive(true))
+                }
             }
-        val out = jsonTreeWithAccessibilitySource(merged, treeSource)
-        ToolExecutionResult(json.encodeToString(JsonObject.serializer(), out))
+            val lenSecond = json.encodeToString(JsonObject.serializer(), candidate).length
+            if (lenSecond > finalEncodedLen) {
+                finalOut = candidate
+                finalEncodedLen = lenSecond
+            }
+        }
+
+        ToolExecutionResult(json.encodeToString(JsonObject.serializer(), finalOut))
     }
 
     suspend fun captureScreenshot(input: JsonObject): ToolExecutionResult = withContext(main) {
@@ -192,7 +238,50 @@ class AndroidDeviceBridge(
         val maxShortEdge = input.optInt("maxShortEdge", CAPTURE_SCREENSHOT_DEFAULT_MAX_EDGE)
             .coerceIn(CAPTURE_SCREENSHOT_MIN_EDGE_CAP, CAPTURE_SCREENSHOT_MAX_EDGE_CAP)
         val jpegQuality = input.optInt("jpegQuality", 82).coerceIn(40, 95)
-        svc.captureScreenshotForAgent(maxLongEdge, maxShortEdge, jpegQuality)
+        val base = svc.captureScreenshotForAgent(maxLongEdge, maxShortEdge, jpegQuality)
+        attachOmniparserIfNeeded(input, base)
+    }
+
+    /**
+     * 截图成功后，若设置中配置了 OmniParser [parseUrl]，则 POST 同一张 JPEG 并合并 `omniparser` 字段到元数据 JSON。
+     */
+    private suspend fun attachOmniparserIfNeeded(
+        input: JsonObject,
+        base: ToolExecutionResult,
+    ): ToolExecutionResult {
+        if (base.isError ||
+            input.optBoolean("skipOmniparser", false) ||
+            !omniparserConfig.enabled()
+        ) {
+            return base
+        }
+        val b64 = base.images.firstOrNull()?.base64Data ?: return base
+        val omnipart = withContext(Dispatchers.IO) {
+            runCatching { postOmniparserParse(omniparserConfig, b64) }.fold(
+                onSuccess = { it },
+                onFailure = { e ->
+                    buildJsonObject {
+                        put("ok", JsonPrimitive(false))
+                        put("error", JsonPrimitive(e.message ?: e.toString()))
+                    }
+                },
+            )
+        }
+        val metaObj = runCatching { json.decodeFromString(JsonObject.serializer(), base.text) }.getOrNull()
+            ?: return ToolExecutionResult(
+                text = base.text,
+                isError = base.isError,
+                images = base.images,
+            )
+        val mergedObj = buildJsonObject {
+            metaObj.forEach { (k, v) -> put(k, v) }
+            put("omniparser", omnipart)
+        }
+        return ToolExecutionResult(
+            text = json.encodeToString(JsonObject.serializer(), mergedObj),
+            isError = false,
+            images = base.images,
+        )
     }
 
     /** 不切换到 Main，便于与无障碍 Main 线程工具在并发批次中重叠执行。 */
@@ -507,13 +596,29 @@ class AndroidDeviceBridge(
     private fun errJson(msg: String) = buildJsonObject {
         put("error", JsonPrimitive(msg))
     }
+
+    /**
+     * 判断是否需要用更宽参数再抓一次：空窗口、关键词无匹配、节点过少或整体 JSON 过短。
+     */
+    private fun shouldRefetchUiTreeForSparseResult(out: JsonObject, encodedLength: Int): Boolean {
+        val windows = out["windows"] as? JsonArray
+        if (windows == null || windows.isEmpty()) return true
+        val kwEmpty =
+            out["keywordMatchEmpty"]?.jsonPrimitive?.content?.equals("true", ignoreCase = true) == true
+        if (kwEmpty) return true
+        val nc = out["nodesCaptured"]?.jsonPrimitive?.content?.toIntOrNull()
+        if (nc != null && nc > 0 && nc < GET_UI_TREE_SPARSE_MAX_NODES_CAPTURED) return true
+        if (encodedLength < GET_UI_TREE_SPARSE_MIN_ENCODED_CHARS) return true
+        return false
+    }
 }
 
 fun opendroidDeviceToolExecutor(
     context: Context,
     skills: dev.opendroid.agent.SkillContentLoader? = null,
+    omniparser: OmniparserParseConfig = OmniparserParseConfig.Disabled,
 ): dev.opendroid.agent.ToolExecutor {
-    val bridge = AndroidDeviceBridge(context)
+    val bridge = AndroidDeviceBridge(context, omniparser)
     val handlers = mutableMapOf<String, suspend (JsonObject) -> ToolExecutionResult>(
         "get_ui_tree" to { bridge.getUiTree(it) },
         "get_focused_package" to { bridge.getFocusedPackage(it) },

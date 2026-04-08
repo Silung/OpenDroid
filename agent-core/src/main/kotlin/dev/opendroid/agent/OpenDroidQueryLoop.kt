@@ -48,6 +48,10 @@ class OpenDroidQueryLoop(
     private val tools: List<ToolDefinition>,
     private val toolExecutor: ToolExecutor,
     private val toolTrafficLogger: AgentToolTrafficLogger? = null,
+    /**
+     * 为纯文本/非多模态模型准备请求：在发往 API 前剥离 [ContentBlock.ToolResult.images]（会话内仍保留图供 UI）。
+     */
+    private val omitToolResultImagesForLlm: Boolean = false,
     private val toolResultUiPreviewChars: Int = 14_000,
     /** 写入会话的 get_ui_tree 正文上限（minify 后再截断）。 */
     private val getUiTreeStorageMaxChars: Int = UiTreeCompaction.DEFAULT_STORAGE_MAX_CHARS,
@@ -58,19 +62,15 @@ class OpenDroidQueryLoop(
     private val getUiTreeHistoryStub: String = "[OpenDroid] 历史 get_ui_tree 已省略以省 token；若需该屏信息请再次 get_ui_tree。",
     /** 已从会话中移除截图 blob 后写入的占位（每轮 completeTurn 后剥离 JPEG，避免重复发送）。 */
     private val captureScreenshotHistoryStub: String = UiTreeCompaction.DEFAULT_CAPTURE_SCREENSHOT_HISTORY_STUB,
-    /**
-     * 每轮 [LlmClient.completeTurn] 时，发往模型的上下文中至多保留最近这么多条 **Assistant**；
-     * User 条数不设此上限（随前缀截断自然变化）。见 [sliceChatMessagesForLlmRequest]。
-     */
-    private val maxLlmHistoryAssistantMessages: Int = 6,
 ) {
     private val loopJson = Json { prettyPrint = false; ignoreUnknownKeys = true }
 
     companion object {
         private const val COMPACT_SYSTEM_PROMPT =
-            "You compress prior chat for a phone UI automation agent. Output a concise bullet summary covering: " +
-                "user goals, important tool calls and outcomes (get_ui_tree, taps, apps, errors), " +
-                "and current task state if clear. Match the transcript language (Chinese or English). Do not invent facts."
+            "You compress prior chat for a phone UI automation agent. Output a concise bullet summary with " +
+                "only two themes: (1) the user's goals—what they want—and (2) what has already been done " +
+                "(tools used, outcomes, errors). Do not include screen layout, UI elements, coordinates, or " +
+                "planned next steps. Match the transcript language (Chinese or English). Do not invent facts."
     }
 
     private fun summarizeToolInput(input: JsonObject, maxChars: Int = 2_000): String {
@@ -153,7 +153,12 @@ class OpenDroidQueryLoop(
             ),
             captureScreenshotHistoryStub,
         )
-        return stubbed.applyToolResultBudget(toolResultBudgetPolicy)
+        val budgeted = stubbed.applyToolResultBudget(toolResultBudgetPolicy)
+        return if (omitToolResultImagesForLlm) {
+            budgeted.omitToolResultImagesForLlm()
+        } else {
+            budgeted
+        }
     }
 
     private suspend fun maybeCompactConversation(
@@ -165,18 +170,13 @@ class OpenDroidQueryLoop(
     ) {
         val cfg = conversationCompactConfig
         if (!cfg.enabled) return
-        if (conversation.size <= cfg.keepRecentMessages) return
+        if (conversation.isEmpty()) return
 
         val trialMessages = buildMessagesForLlm(conversation.toList())
-        var est = RequestPayloadEstimator.approximatePayloadChars(systemPrompt, trialMessages, tools)
+        var est = RequestPayloadEstimator.approximateCompactionTriggerPayloadChars(systemPrompt, trialMessages, tools)
         if (est <= cfg.triggerApproxPayloadChars) return
 
-        val headSize = conversation.size - cfg.keepRecentMessages
-        if (headSize <= 0) return
-
-        val head = conversation.take(headSize)
-        val tail = conversation.drop(headSize)
-        val digest = head.toCompactDigestText()
+        val digest = conversation.toCompactDigestText()
         if (digest.isBlank()) return
 
         val summaryResult = llm.completeTurn(
@@ -185,7 +185,7 @@ class OpenDroidQueryLoop(
                 messages = listOf(
                     ChatMessage(
                         ChatRole.User,
-                        listOf(ContentBlock.Text("[OpenDroid：以下是待压缩的早期对话节选]\n$digest")),
+                        listOf(ContentBlock.Text("[OpenDroid：以下是待压缩的完整对话节选]\n$digest")),
                     ),
                 ),
                 tools = emptyList(),
@@ -211,7 +211,6 @@ class OpenDroidQueryLoop(
         )
         conversation.clear()
         conversation.add(summaryMsg)
-        conversation.addAll(tail)
         emit(QueryLoopEvent.ConversationCompacted(est, summaryText.length))
     }
 
@@ -227,8 +226,6 @@ class OpenDroidQueryLoop(
         try {
             val userBlocks = listOf(ContentBlock.Text(userText))
             conversation.add(ChatMessage(ChatRole.User, userBlocks))
-            /** 本轮用户自然语言在 [conversation] 中的下标；多轮 tool 期间不变，供切片固定保留。 */
-            val pinnedUserMessageIndex = conversation.lastIndex
             emit(QueryLoopEvent.UserTurnAdded(userText.take(200)))
 
             var turnIndex = 0
@@ -239,13 +236,7 @@ class OpenDroidQueryLoop(
                 }
                 turnIndex++
                 maybeCompactConversation(systemPrompt, conversation, model, maxTokens, emit)
-                val messagesForLlm = buildMessagesForLlm(
-                    sliceChatMessagesForLlmRequest(
-                        messages = conversation.toList(),
-                        maxAssistantMessages = maxLlmHistoryAssistantMessages,
-                        firstMessageIndexToKeep = pinnedUserMessageIndex,
-                    ),
-                )
+                val messagesForLlm = buildMessagesForLlm(conversation.toList())
                 val turnResult = llm.completeTurn(
                     LlmRequest(
                         systemPrompt = systemPrompt,

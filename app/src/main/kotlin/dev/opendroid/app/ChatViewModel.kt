@@ -34,7 +34,7 @@ import dev.opendroid.agent.QueryLoopEvent
 
 import dev.opendroid.agent.ToolResultImage
 
-import dev.opendroid.agent.opendroidDefaultToolDefinitions
+import dev.opendroid.agent.opendroidToolDefinitionsForSession
 
 import dev.opendroid.app.session.ChatSessionRepository
 
@@ -44,6 +44,7 @@ import dev.opendroid.app.session.deriveSessionTitle
 
 import dev.opendroid.app.R
 
+import dev.opendroid.device.OmniparserParseConfig
 import dev.opendroid.device.opendroidDeviceToolExecutor
 
 import dev.opendroid.app.skills.OpenDroidSkillRepository
@@ -132,6 +133,8 @@ You control the device through tools only; do not invent screen content.
 
 **Navigation discipline:** After **any** step that can change the foreground app or window (launch_app, key_system Home/Back/Recents, or taps/swipes that open another app or a substantially new screen), the **first** `get_ui_tree` must be **`{}` without `packageName`**—the jump may have failed, a dialog/IME may be up, or focus may differ from what you expected; a package filter can hide the real screen or return an empty/wrong subtree. You may call **`get_focused_package` with `{}`** in parallel or right before for awareness, but do **not** pass `packageName` on that first tree read. **After** the tree (and/or `get_focused_package`) shows you are stably on the intended app, you **may** pass `packageName` on later `get_ui_tree` calls to trim status bar, IME, and unrelated windows.
 
+**Wrong screen after bad actions:** Earlier taps/swipes or other steps may have been **wrong**, leaving you on an **unexpected** page (wrong activity, extra drill-down, stray dialog, or off-goal UI). If the tree or screenshot **clearly** does not match where you should be to satisfy the user, **do not** keep tapping forward on that surface—use **`key_system` with `key`: `"BACK"`** to go back (repeat once or twice only if needed), then **`get_ui_tree` with `{}`** to re-orient before continuing.
+
 For get_ui_tree: add keyword, maxDepth, maxNodes, compact, hideNonVisible when helpful; use **`packageName` only once navigation outcome is confirmed**, not immediately after a navigation attempt. JSON keys: cls,t,d,id,clk,scr,ed,b (l,t,r,bt), c(children).
 
 **Hostile / sparse trees:** OpenDroid 只提供 **一项** 无障碍服务（系统中名称可与「随选朗读」组件相同）。若 **`{}` 与调参后树仍异常**，可再试带 **`\"accessibilityTreeSource\": \"whitelist_compat\"`**（与当前默认实为同一连接，便于固定重试流程）。若返回 **`accessibility_service_disabled`**，根据 **hint** 请用户在 设置 → 无障碍 中开启该项。
@@ -148,9 +151,18 @@ Use agent_wait(duration_ms) to wait for animations, page loads, or when the user
 
 For list_apps: the user usually names the app clearly — **pass query** with a short substring of that name (or pinyin fragment / English) whenever possible; only use an empty / exploratory call when you truly need many apps at once.
 
-Prefer short plans, then act. User language may be Chinese or English — reply in the user's language.
+**Before any action that changes the device** (e.g. tap, swipe, long_press, drag, launch_app, key_system, text input tools): in the **same assistant turn**, write a short preamble **in the user's language**, **then** emit the tool calls—**never** issue those tools without this preamble. Structure it as:
+1. **User goal** — restate what the user wants in one clear sentence.
+2. **Current screen** — foreground app/window and a high-level layout (e.g. list, form, dialog, web view).
+3. **Relevant UI** — bullets for elements that matter (visible text, node hints from the tree, or vision-based regions); name what is actionable.
+4. **Planned geometry** — for **each** upcoming tap/swipe/long_press/drag/key: which element, the **concrete** coordinates you will use (pixel center from `b`, or estimated x/y from JPEG with image dimensions), direction/distance for swipes, and how that matches the goal.
+5. **Then** output the tool invocations (JSON). Keep the preamble concise but sufficient to justify every coordinate.
+
+User language may be Chinese or English — reply in the user's language.
 
 Never ask for passwords or 2FA codes.
+
+**Before you stop (no more tool calls):** Treat the task as unfinished until you have **re-checked** against the user's goal. Do a **final confirmation pass** when anything substantive was supposed to change on device: e.g. one more **`get_ui_tree` with `{}` or minimal filters**, or **`capture_screenshot`** if pixels matter (success screen, error toast, correct page). In your **last** assistant message, **explicitly state** whether the user's request is **fully done**, what evidence you saw (screen / tree), and if anything is **left undone** or **uncertain** — do not assume success without checking.
 
 The message will include a section listing local skills and tool names — use load_skill only when a skill clearly applies."""
 
@@ -768,7 +780,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
                 }
 
-                val tools = opendroidDefaultToolDefinitions()
+                val tools = opendroidToolDefinitionsForSession()
 
                 val skills = withContext(Dispatchers.IO) { skillRepo.listSkills() }
 
@@ -792,11 +804,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
                     tools = tools,
 
-                    toolExecutor = opendroidDeviceToolExecutor(getApplication(), skillRepo),
+                    toolExecutor = opendroidDeviceToolExecutor(
+                        getApplication(),
+                        skillRepo,
+                        OmniparserParseConfig(
+                            parseUrl = if (settings.omniparserEnabled) {
+                                settings.omniparserParseUrl.trim()
+                            } else {
+                                ""
+                            },
+                            apiKey = settings.omniparserApiKey.trim().takeIf { it.isNotEmpty() },
+                        ),
+                    ),
 
                     toolTrafficLogger = debugTrace,
 
-                    maxLlmHistoryAssistantMessages = settings.maxLlmHistoryAssistantMessages,
+                    omitToolResultImagesForLlm = settings.llmOmitToolResultImages,
 
                 )
 

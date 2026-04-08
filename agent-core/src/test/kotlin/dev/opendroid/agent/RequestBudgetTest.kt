@@ -59,6 +59,25 @@ class RequestBudgetTest {
     }
 
     @Test
+    fun compactionTriggerEstimatorIgnoresBulkImageBase64() {
+        val tools = emptyList<ToolDefinition>()
+        val huge = "x".repeat(200_000)
+        val img = ToolResultImage(mediaType = "image/jpeg", base64Data = huge)
+        val messages = listOf(
+            ChatMessage(
+                ChatRole.User,
+                listOf(
+                    ContentBlock.ToolResult(toolUseId = "id", content = "{}", images = listOf(img)),
+                ),
+            ),
+        )
+        val full = RequestPayloadEstimator.approximatePayloadChars("", messages, tools)
+        val forCompact = RequestPayloadEstimator.approximateCompactionTriggerPayloadChars("", messages, tools)
+        assertTrue(full > 150_000)
+        assertTrue(forCompact < 10_000)
+    }
+
+    @Test
     fun digestIncludesToolNames() {
         val list = listOf(
             ChatMessage(

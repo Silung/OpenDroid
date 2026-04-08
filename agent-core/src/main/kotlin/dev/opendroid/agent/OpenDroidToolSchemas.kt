@@ -11,7 +11,8 @@ fun opendroidDefaultToolDefinitions(): List<ToolDefinition> = listOf(
     ToolDefinition(
         name = "get_ui_tree",
         description =
-            "Return accessibility UI tree JSON. **Right after a navigation attempt** (launch_app, key_system, tap/swipe that may change the app or screen), **omit `packageName`** on the first call—the jump may not have succeeded; filtering by an expected package can empty or distort the tree. After you confirm focus from this tree or **`get_focused_package`**, you may set `packageName` on later calls to drop status bar, IME, and other packages. Also use keyword, maxDepth, maxNodes, compact, hideNonVisible when helpful. " +
+            "Return accessibility UI tree JSON. The client may **automatically** run a second, broader capture (compact=false, hideNonVisible=false, higher depth/node cap) if the first result looks sparse, then return whichever serialized JSON is larger; when the broader pass wins, the payload includes boolean **`openDroidUiTreeRefetchedBroader`**. " +
+                "**Right after a navigation attempt** (launch_app, key_system, tap/swipe that may change the app or screen), **omit `packageName`** on the first call—the jump may not have succeeded; filtering by an expected package can empty or distort the tree. After you confirm focus from this tree or **`get_focused_package`**, you may set `packageName` on later calls to drop status bar, IME, and other packages. Also use keyword, maxDepth, maxNodes, compact, hideNonVisible when helpful. " +
                 "**Sparse / hostile trees** (some in-app WebViews or heavily filtered UIs): after `{}` and adjusted parameters still fail, you may set **`accessibilityTreeSource`: `\"whitelist_compat\"`** for compatibility with older agent prompts (OpenDroid uses a single accessibility service whose component name matches system Select-to-Speak). If the service is off, `accessibility_service_disabled` includes a **hint**—have the user enable OpenDroid in Settings → Accessibility. " +
                 "**Recovery:** if a parameterized call clearly misses the screen (wrong/empty subtree, tree too thin, filters too tight), call **get_ui_tree again with `{}`**—no filters, default depth/nodes—before giving up on the tree. If a broad `{}` tree is still **very sparse** (few nodes, little detail) or otherwise **not actionable**, use **`capture_screenshot`** to see the real UI—do not keep retrying get_ui_tree alone. Same if animation-heavy UIs or missing overlays/targets. Broad defaults: compact=true, maxDepth=12, maxNodes=600, hideNonVisible=true. " +
                 "Guidelines: (0) accessibilityTreeSource — optional; `default` (omit) vs `whitelist_compat` hit the **same** OpenDroid service today—keep for retry scripts. (1) packageName — omit for all windows until focus is confirmed. (2) keyword — short substring on label, id, desc (case-insensitive). (3) maxDepth — overview 6–10, typical 12–14, deep 16–18. " +
@@ -122,7 +123,8 @@ fun opendroidDefaultToolDefinitions(): List<ToolDefinition> = listOf(
     ToolDefinition(
         name = "capture_screenshot",
         description =
-            "Take a full-display **JPEG** via the accessibility screenshot API. **What you get back:** the tool_result **text** is a **tiny JSON** with ok, width, height, media_type, jpegByteLength, and a note — **not** the image bytes. " +
+            "Take a full-display **JPEG** via the accessibility screenshot API. **What you get back:** the tool_result **text** is a **JSON** with ok, width, height, media_type, jpegByteLength, and a note — **not** the image bytes. " +
+                "If OmniParser is **enabled** in app settings and a `/parse/` URL is configured, the same JPEG is POSTed there and the text also contains **`omniparser`** with `parsed_content_list`, `latency`, and `som_image_base64_length` (annotated image base64 is omitted to save tokens). " +
                 "The **pixels are attached as separate image content** on the same tool_result (multimodal / vision). Use vision whenever **pixels ground actions better than the accessibility tree** — not only when the tree is empty. " +
                 "**When to call:** Start from a quick **`get_ui_tree` with `{}`** (and fix bad filters/params first). Then capture with **`{}`** if: tree is empty/tiny/unusable; **or** the tree is **information-sparse** (very few nodes, little text, not enough to pick the next action) after a proper `{}` read; **or** tree is non-empty but **logically incomplete** (missing overlays, bottom sheets, animated layers, or clickable regions you need); **or** **heavy animation / transitions / WebView / custom surfaces** so the tree likely lags or omits what is on screen; **or** you cannot locate or verify the next control after reasonable tree retries (optionally **`agent_wait`** then one more tree). Prefer **bounds from get_ui_tree** for gestures when reliable; if no node matches the target, **derive pixel coordinates from this image** (screen space, origin top-left; scale using metadata width/height) with **`normalized: false`**. " +
                 "**Limits:** Default is **native / full-resolution** JPEG (no downscale). Optional `maxLongEdge` / `maxShortEdge` **cap** shrinking only—**never** upscale. Smaller caps save bandwidth/API size. **Requirements:** Android 12 (API 31)+; **accessibility service must allow full-screen screenshot**. Non–vision models will not see the image. Full-screen tall JPEGs cost more tokens than downscaled or trees.",
@@ -163,6 +165,18 @@ fun opendroidDefaultToolDefinitions(): List<ToolDefinition> = listOf(
                                 "description",
                                 JsonPrimitive(
                                     "Optional JPEG compression 40–95; default 82. Higher = larger file / better detail.",
+                                ),
+                            )
+                        },
+                    )
+                    put(
+                        "skipOmniparser",
+                        buildJsonObject {
+                            put("type", JsonPrimitive("boolean"))
+                            put(
+                                "description",
+                                JsonPrimitive(
+                                    "If true, skip the OmniParser HTTP call even when enabled and URL is set (faster / offline). Default false.",
                                 ),
                             )
                         },

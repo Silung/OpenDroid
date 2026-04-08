@@ -49,15 +49,23 @@
     <string name="api_format_anthropic_short">Anthropic</string>
     <string name="api_format_openai_desc">/v1/chat/completions (SiliconFlow multimodal, screenshots as image_url)</string>
     <string name="api_format_anthropic_desc">/v1/messages (Anthropic Messages API)</string>
+    <string name="llm_text_only_payload_title">Text-only LLM (no images in API)</string>
+    <string name="llm_text_only_payload_desc">When on, JPEGs attached to tool results (e.g. capture_screenshot) are stripped from requests—only JSON text is sent (OmniParser recommended). Use for non-multimodal models. Session and UI thumbnails stay unchanged.</string>
     <string name="llm_api_key_required">Add an API key in Settings first.</string>
     <string name="label_base_url">Base URL</string>
     <string name="label_model">Model</string>
     <string name="label_max_agent_turns">Max agent turns</string>
-    <string name="label_max_llm_history_messages">Max assistant messages in context</string>
-    <string name="support_max_llm_history_messages">Counts Assistant role only; User messages are not capped separately (they remain inside the trimmed window). Default 6.</string>
     <string name="overlay_output_title">Overlay output</string>
     <string name="overlay_output_desc">Shown only while the agent is thinking; closes about 5s after the turn ends. Semi-transparent, non-interactive. Needs “Display over other apps”; Android 13+ may require notification permission.</string>
     <string name="save_and_back">Save &amp; back</string>
+    <string name="omniparser_section_title">OmniParser</string>
+    <string name="omniparser_section_desc">When enabled, each successful capture_screenshot POSTs the same JPEG to the URL below and merges the parse result into the tool JSON under omniparser. Empty URL falls back to local.properties opendroid.default.omniparser.parse.url. Use your PC’s LAN IP from the phone; cleartext HTTP is allowed.</string>
+    <string name="omniparser_enable_title">Enable OmniParser</string>
+    <string name="omniparser_enable_desc">When off, no HTTP parse call; the screenshot still returns JPEG and metadata.</string>
+    <string name="label_omniparser_parse_url">OmniParser parse URL</string>
+    <string name="hint_omniparser_parse_url_fallback">e.g. http://192.168.1.5:8000/parse/</string>
+    <string name="label_omniparser_api_key">OmniParser API key (optional)</string>
+    <string name="hint_omniparser_api_key">Match server OMNIPARSER_API_KEY if enabled</string>
     <string name="settings_footer_tips">Accessibility: Settings → Accessibility → OpenDroid (required for screen reading and taps).\nSkills: drawer “Skills”, or files under skills/&lt;skill_id&gt;/SKILL.md.\nOverlay: only while the agent runs; needs the process alive to refresh when other apps are in foreground.</string>
 
     <string name="skill_list_title">Skills</string>

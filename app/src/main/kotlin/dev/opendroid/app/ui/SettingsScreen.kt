@@ -5,7 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import dev.opendroid.app.BuildConfig
+import dev.opendroid.app.OpenDroidEndpointDefaults
 import dev.opendroid.app.overlay.FloatingOverlayService
 import dev.opendroid.app.LlmApiFormat
 import dev.opendroid.app.OpenDroidSettings
@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -53,9 +55,12 @@ fun SettingsScreen(onBack: () -> Unit) {
     var baseUrl by remember { mutableStateOf(settings.anthropicBaseUrlStoredRaw()) }
     var model by remember { mutableStateOf(settings.modelStoredRaw()) }
     var maxTurns by remember { mutableStateOf(settings.maxTurns.toString()) }
-    var maxLlmHistory by remember { mutableStateOf(settings.maxLlmHistoryAssistantMessagesStoredRaw().ifBlank { "6" }) }
     var overlayEnabled by remember { mutableStateOf(settings.overlayEnabled) }
+    var llmOmitToolImages by remember { mutableStateOf(settings.llmOmitToolResultImages) }
     var apiFormat by remember { mutableStateOf(settings.llmApiFormat) }
+    var omniparserEnabled by remember { mutableStateOf(settings.omniparserEnabled) }
+    var omniparserUrl by remember { mutableStateOf(settings.omniparserParseUrlStoredRaw()) }
+    var omniparserKey by remember { mutableStateOf(settings.omniparserApiKeyStoredRaw()) }
 
     LifecycleResumeEffect(Unit) {
         overlayEnabled = settings.overlayEnabled
@@ -100,6 +105,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         Column(
             modifier = Modifier
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp)
                 .fillMaxWidth(),
         ) {
@@ -135,6 +141,29 @@ fun SettingsScreen(onBack: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp),
+                ) {
+                    Text(stringResource(R.string.llm_text_only_payload_title), style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        stringResource(R.string.llm_text_only_payload_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = llmOmitToolImages,
+                    onCheckedChange = { llmOmitToolImages = it },
+                )
+            }
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
@@ -150,7 +179,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 value = baseUrl,
                 onValueChange = { baseUrl = it },
                 label = { Text(stringResource(R.string.label_base_url)) },
-                placeholder = { Text(BuildConfig.DEFAULT_LLM_BASE_URL) },
+                placeholder = { Text(OpenDroidEndpointDefaults.llmBaseUrl) },
                 singleLine = true,
             )
             Spacer(Modifier.height(12.dp))
@@ -159,7 +188,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 value = model,
                 onValueChange = { model = it },
                 label = { Text(stringResource(R.string.label_model)) },
-                placeholder = { Text(BuildConfig.DEFAULT_LLM_MODEL) },
+                placeholder = { Text(OpenDroidEndpointDefaults.llmModel) },
                 singleLine = true,
             )
             Spacer(Modifier.height(12.dp))
@@ -170,14 +199,57 @@ fun SettingsScreen(onBack: () -> Unit) {
                 label = { Text(stringResource(R.string.label_max_agent_turns)) },
                 singleLine = true,
             )
+            Spacer(Modifier.height(20.dp))
+            Text(stringResource(R.string.omniparser_section_title), style = MaterialTheme.typography.titleSmall)
+            Text(
+                stringResource(R.string.omniparser_section_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp),
+                ) {
+                    Text(stringResource(R.string.omniparser_enable_title), style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        stringResource(R.string.omniparser_enable_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = omniparserEnabled,
+                    onCheckedChange = { omniparserEnabled = it },
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = omniparserUrl,
+                onValueChange = { omniparserUrl = it },
+                label = { Text(stringResource(R.string.label_omniparser_parse_url)) },
+                placeholder = {
+                    val d = OpenDroidEndpointDefaults.omniparserParseUrl
+                    Text(
+                        d.ifBlank { stringResource(R.string.hint_omniparser_parse_url_fallback) },
+                    )
+                },
+                singleLine = true,
+            )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
-                value = maxLlmHistory,
-                onValueChange = { maxLlmHistory = it },
-                label = { Text(stringResource(R.string.label_max_llm_history_messages)) },
-                placeholder = { Text("6") },
-                supportingText = { Text(stringResource(R.string.support_max_llm_history_messages)) },
+                value = omniparserKey,
+                onValueChange = { omniparserKey = it },
+                label = { Text(stringResource(R.string.label_omniparser_api_key)) },
+                placeholder = { Text(stringResource(R.string.hint_omniparser_api_key)) },
                 singleLine = true,
             )
             Spacer(Modifier.height(20.dp))
@@ -219,7 +291,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     settings.model = model.trim()
                     settings.llmApiFormat = apiFormat
                     settings.maxTurns = maxTurns.toIntOrNull() ?: 24
-                    settings.maxLlmHistoryAssistantMessages = maxLlmHistory.toIntOrNull()?.coerceIn(1, 256) ?: 6
+                    settings.llmOmitToolResultImages = llmOmitToolImages
+                    settings.omniparserEnabled = omniparserEnabled
+                    settings.omniparserParseUrl = omniparserUrl.trim()
+                    settings.omniparserApiKey = omniparserKey.trim()
                     onBack()
                 },
                 modifier = Modifier.fillMaxWidth(),

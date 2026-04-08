@@ -35,8 +35,18 @@ android {
         val injectedApiKey = System.getenv("OPENDROID_DEFAULT_API_KEY")
             ?: localProps.getProperty("opendroid.default.api.key")
             ?: ""
-        val defaultBaseUrl = "https://api.siliconflow.cn/v1"
-        val defaultModel = "zai-org/GLM-4.6V"
+        val defaultBaseUrl = localProps.getProperty("opendroid.default.llm.base.url")
+            ?: "https://api.siliconflow.cn/v1"
+        val defaultModel = localProps.getProperty("opendroid.default.llm.model")
+            ?: "zai-org/GLM-4.6V"
+        val defaultOmniparserParseUrl = localProps.getProperty("opendroid.default.omniparser.parse.url")
+            ?: ""
+        val defaultLlmApiFormat = when (
+            localProps.getProperty("opendroid.default.llm.api.format")?.trim()?.lowercase().orEmpty()
+        ) {
+            "anthropic" -> "anthropic"
+            else -> "openai"
+        }
         buildConfigField(
             "String",
             "DEFAULT_LLM_API_KEY",
@@ -51,6 +61,16 @@ android {
             "String",
             "DEFAULT_LLM_MODEL",
             "\"${defaultModel.escapeForBuildConfigString()}\"",
+        )
+        buildConfigField(
+            "String",
+            "DEFAULT_OMNIPARSER_PARSE_URL",
+            "\"${defaultOmniparserParseUrl.escapeForBuildConfigString()}\"",
+        )
+        buildConfigField(
+            "String",
+            "DEFAULT_LLM_API_FORMAT",
+            "\"${defaultLlmApiFormat.escapeForBuildConfigString()}\"",
         )
     }
     signingConfigs {

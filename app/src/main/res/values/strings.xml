@@ -49,15 +49,23 @@
     <string name="api_format_anthropic_short">Anthropic</string>
     <string name="api_format_openai_desc">/v1/chat/completions（硅基流动多模态文档，截图用 image_url）</string>
     <string name="api_format_anthropic_desc">/v1/messages（Anthropic Messages）</string>
+    <string name="llm_text_only_payload_title">纯文本模型（请求不含图）</string>
+    <string name="llm_text_only_payload_desc">开启后，发往大模型的内容里会去掉 capture_screenshot 等工具附带的 JPEG，仅保留 JSON 文本（建议同时配置 OmniParser 以结构化内容）。适合不支持多模态的模型。会话与界面仍保留截图与缩略图。</string>
     <string name="llm_api_key_required">请先在设置中填写 API Key。</string>
     <string name="label_base_url">Base URL</string>
     <string name="label_model">Model</string>
     <string name="label_max_agent_turns">Max agent turns</string>
-    <string name="label_max_llm_history_messages">传给模型的 Assistant 条数上限</string>
-    <string name="support_max_llm_history_messages">只统计助手消息；User 消息不设条数上限（会随截取保留在窗口内）。默认 6。</string>
     <string name="overlay_output_title">悬浮窗输出</string>
     <string name="overlay_output_desc">仅在 Agent 推理时显示；本轮结束后约 5 秒自动关闭。半透明叠层、不可点击。须「显示在其他应用上层」，Android 13+ 可能需通知权限。</string>
     <string name="save_and_back">保存并返回</string>
+    <string name="omniparser_section_title">OmniParser</string>
+    <string name="omniparser_section_desc">启用后，每次 capture_screenshot 成功会把同一张 JPEG POST 到下方 URL，并把解析结果写入工具 JSON 的 omniparser。URL 留空时回落 local.properties 的 opendroid.default.omniparser.parse.url。手机访问电脑请用局域网 IP；应用已允许 HTTP 明文。</string>
+    <string name="omniparser_enable_title">启用 OmniParser</string>
+    <string name="omniparser_enable_desc">关闭后不请求解析服务，截图仍返回 JPEG 与元数据。</string>
+    <string name="label_omniparser_parse_url">OmniParser 解析 URL</string>
+    <string name="hint_omniparser_parse_url_fallback">例：http://192.168.1.5:8000/parse/</string>
+    <string name="label_omniparser_api_key">OmniParser API Key（可选）</string>
+    <string name="hint_omniparser_api_key">与服务端 OMNIPARSER_API_KEY 一致时填写</string>
     <string name="settings_footer_tips">无障碍：系统设置 → 无障碍 → OpenDroid（开启后 Agent 才能读屏与点击）。\nSkill：侧栏「Skill 管理」，或写入 skills/&lt;skill_id&gt;/SKILL.md。\n悬浮窗：仅在 Agent 运行期间显示，结束后约 5 秒消失；在其它 App 时需进程存活才会刷新。</string>
 
     <string name="skill_list_title">Skill 管理</string>

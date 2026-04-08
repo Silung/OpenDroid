@@ -13,14 +13,16 @@ data class ToolResultBudgetPolicy(
 )
 
 /**
- * 当估算的 API 负载超过 [triggerApproxPayloadChars] 时，将更早的对话摘要为一条用户消息（模型调用）。
+ * 当估算的 API 负载超过 [triggerApproxPayloadChars] 时，将**当前会话中的全部消息**摘要为
+ * 一条用户消息（另一次模型调用），并**替换**原列表（实现见 `OpenDroidQueryLoop`）。
  */
 data class ConversationCompactConfig(
     val enabled: Boolean = true,
-    /** 粗算字符数（system + tools 定义 + messages 文本与图片 base64）超过则触发摘要 */
+    /**
+     * 粗算字符数超过则触发摘要。决策体积见 [RequestPayloadEstimator.approximateCompactionTriggerPayloadChars]：
+     * **不以** tool_result 内嵌图 base64 真实长度计入，避免单次截图误触压缩。
+     */
     val triggerApproxPayloadChars: Int = 90_000,
-    /** 保留最近的 [ChatMessage] 条数（不送入摘要器，原样保留） */
-    val keepRecentMessages: Int = 14,
     /** 摘要请求的 max_tokens 上限 */
     val summaryMaxTokens: Int = 2_048,
 )
@@ -91,6 +93,49 @@ object RequestPayloadEstimator {
             n += 24
             for (block in msg.blocks) {
                 n += blockWeight(block)
+            }
+        }
+        return n
+    }
+
+    /**
+     * 仅用于 [ConversationCompactConfig]：是否要把整段会话压成一条摘要。
+     *
+     * **不把** [ContentBlock.ToolResult.images] 的 base64 按字节长度计入。否则在刚插入
+     * `capture_screenshot` 的 tool_result 后、尚未 [UiTreeCompaction.stripConsumedCaptureScreenshots]
+     * 之前，单次 JPEG 就会让 [approximatePayloadChars] 暴涨并**误触发**全文压缩；多模态体积不应等同于「文字历史过长」。
+     *
+     * @param charsPerToolResultImagePlaceholder 每张内嵌图在决策里占的固定「名义」字符（沿用 mediaType 的小额开销）。
+     */
+    fun approximateCompactionTriggerPayloadChars(
+        systemPrompt: String,
+        messages: List<ChatMessage>,
+        tools: List<ToolDefinition>,
+        charsPerToolResultImagePlaceholder: Int = 512,
+    ): Int {
+        val perImg = charsPerToolResultImagePlaceholder.coerceAtLeast(0)
+        var n = systemPrompt.length + 256
+        for (t in tools) {
+            n += t.name.length + t.description.length +
+                json.encodeToString(JsonObject.serializer(), t.inputSchema).length + 48
+        }
+        for (msg in messages) {
+            n += 24
+            for (block in msg.blocks) {
+                n += when (block) {
+                    is ContentBlock.Text -> block.text.length + 24
+                    is ContentBlock.ToolUse -> {
+                        block.name.length + block.id.length +
+                            json.encodeToString(JsonObject.serializer(), block.input).length + 48
+                    }
+                    is ContentBlock.ToolResult -> {
+                        var x = block.content.length + block.toolUseId.length + 40
+                        for (img in block.images) {
+                            x += perImg + img.mediaType.length + 48
+                        }
+                        x
+                    }
+                }
             }
         }
         return n

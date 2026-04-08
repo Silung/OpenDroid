@@ -37,7 +37,6 @@ class OpenDroidQueryLoopCompactTest {
             conversationCompactConfig = ConversationCompactConfig(
                 enabled = true,
                 triggerApproxPayloadChars = 8_000,
-                keepRecentMessages = 4,
                 summaryMaxTokens = 512,
             ),
         )
